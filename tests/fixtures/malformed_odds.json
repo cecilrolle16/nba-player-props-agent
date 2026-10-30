@@ -1,0 +1,26 @@
+{
+  "as_of": "2026-11-01T23:00:00Z",
+  "market": "points",
+  "canonical_player_id": "player:synthetic-guard-a",
+  "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+  "snapshot": {
+    "snapshot_id": "snapshot:synthetic-points-bad",
+    "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+    "canonical_player_id": "player:synthetic-guard-a",
+    "raw_player_name": "Synthetic Guard A",
+    "market": "points",
+    "side": "over",
+    "line": null,
+    "american_odds": "not-odds",
+    "book": "synthetic-book",
+    "captured_at": "2026-11-01T22:40:00Z",
+    "available_at": "2026-11-01T22:40:00Z",
+    "source_ids": [{"provider_id": "synthetic-markets", "native_id": "quote-bad-1"}]
+  },
+  "injury": null,
+  "capability": null,
+  "declared_capabilities": null,
+  "historical_projections": [],
+  "historical_required": false,
+  "requested_adjustments": []
+}

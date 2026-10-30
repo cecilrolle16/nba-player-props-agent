@@ -1,0 +1,115 @@
+{
+  "schema_version": 2,
+  "rules_version": "2026-10-29.nba-props-angles",
+  "model_version": "none",
+  "markets": ["points", "assists", "rebounds"],
+  "numeric_hypothesis_adjustments_enabled": false,
+  "hypothesis_magnitudes": {
+    "defender_return": null,
+    "no_streak_chasing": null,
+    "underperformance_rebound": null
+  },
+  "future_context_models": ["pace", "usage", "rest"],
+  "injury_freshness": {
+    "max_age_minutes": 180,
+    "validation_status": "unvalidated_operational_default",
+    "note": "180 minutes is an unvalidated operational default, not a proven safe threshold."
+  },
+  "angle_policies": {
+    "defender_return": {
+      "markets": ["points"],
+      "flagged_research_when_secondary_unclear": false,
+      "required_facts": [
+        "confirmed_return_date",
+        "games_since_return",
+        "minutes_since_return",
+        "key_defensive_player"
+      ]
+    },
+    "no_streak_chasing": {
+      "markets": ["points", "assists", "rebounds"],
+      "independent_evidence": [
+        "minutes",
+        "usage",
+        "matchup",
+        "shot_quality",
+        "health",
+        "game_environment"
+      ],
+      "raises_projection_from_streak": false,
+      "raises_confidence_from_streak": false
+    },
+    "underperformance_rebound": {
+      "markets": ["points", "assists", "rebounds"],
+      "minimum_consecutive_misses": 3,
+      "required_stability": ["minutes", "usage", "shot_volume"],
+      "exclusion_causes": [
+        "injury",
+        "illness",
+        "rest",
+        "reduced_minutes",
+        "blowouts",
+        "declining_production_drivers"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "missing_historical_projections",
+      "precedence": 50,
+      "effect": "unavailable",
+      "reason": "missing_historical_projections",
+      "description": "When history is required, at least one already-available historical projection must match the player, game, and market."
+    },
+    {
+      "id": "malformed_odds",
+      "precedence": 20,
+      "effect": "unavailable",
+      "reason": "malformed_odds",
+      "description": "A quote without a side, a positive finite line, and integer American odds of magnitude at least 100 is unusable."
+    },
+    {
+      "id": "stale_injury_report",
+      "precedence": 40,
+      "effect": "skip",
+      "reason": "stale_injury_report",
+      "max_age_minutes": 180,
+      "description": "A supplied injury report older than the configured freshness window is skipped. 180 minutes is an unvalidated operational default, not a proven safe threshold."
+    },
+    {
+      "id": "unknown_provider_capability",
+      "precedence": 10,
+      "effect": "unavailable",
+      "reason": "unknown_provider_capability",
+      "description": "Capability names outside the declared provider contract are rejected."
+    },
+    {
+      "id": "missing_essential_evidence",
+      "precedence": 45,
+      "effect": "unavailable",
+      "reason": "missing_essential_evidence",
+      "description": "Missing availability or minutes evidence makes the analysis not actionable. This is separate from skipping one angle."
+    },
+    {
+      "id": "not_yet_available",
+      "precedence": 15,
+      "effect": "unavailable",
+      "reason": "not_yet_available",
+      "description": "Facts whose available_at or captured time is after the decision time are excluded."
+    },
+    {
+      "id": "unresolved_player_id",
+      "precedence": 30,
+      "effect": "unavailable",
+      "reason": "unresolved_player_id",
+      "description": "Quotes without one matching canonical player id are not analyzed."
+    },
+    {
+      "id": "unsupported_capability",
+      "precedence": 12,
+      "effect": "unavailable",
+      "reason": "unsupported_capability",
+      "description": "A known capability the provider did not declare cannot be fetched."
+    }
+  ]
+}

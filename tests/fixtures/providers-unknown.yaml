@@ -1,0 +1,6 @@
+version: 1
+providers:
+  - provider_id: synthetic-bad
+    enabled: false
+    capabilities: [live_bets]
+    supported_markets: []

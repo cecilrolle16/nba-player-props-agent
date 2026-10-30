@@ -1,0 +1,42 @@
+# Local environment and secrets. .env.example is the only env file that belongs in git.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+.aws/
+.ssh/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Provider dumps and licensed or private datasets. Tests use synthetic fixtures only.
+data/
+*.parquet
+*.sqlite
+*.sqlite3
+*.db
+*.pkl
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

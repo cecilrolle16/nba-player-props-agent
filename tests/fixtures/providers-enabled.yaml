@@ -1,0 +1,6 @@
+version: 1
+providers:
+  - provider_id: synthetic-live
+    enabled: true
+    capabilities: [schedules]
+    supported_markets: []

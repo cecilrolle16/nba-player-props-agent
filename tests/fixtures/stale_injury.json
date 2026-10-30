@@ -1,0 +1,68 @@
+{
+  "as_of": "2026-11-01T23:00:00Z",
+  "market": "points",
+  "canonical_player_id": "player:synthetic-guard-a",
+  "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+  "snapshot": {
+    "snapshot_id": "snapshot:synthetic-points-stale",
+    "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+    "canonical_player_id": "player:synthetic-guard-a",
+    "raw_player_name": "Synthetic Guard A",
+    "market": "points",
+    "side": "under",
+    "line": 22.5,
+    "american_odds": "+100",
+    "book": "synthetic-book",
+    "captured_at": "2026-11-01T22:40:00Z",
+    "available_at": "2026-11-01T22:40:00Z",
+    "source_ids": [{"provider_id": "synthetic-markets", "native_id": "quote-stale-1"}]
+  },
+  "injury": {
+    "canonical_player_id": "player:synthetic-guard-a",
+    "canonical_team_id": "team:synthetic-home",
+    "status": "out",
+    "detail": "Synthetic rest day",
+    "reported_at": "2026-11-01T18:00:00Z",
+    "available_at": "2026-11-01T18:00:00Z",
+    "source_ids": [{"provider_id": "synthetic-injuries", "native_id": "inj-stale-1"}]
+  },
+  "capability": null,
+  "declared_capabilities": null,
+  "historical_projections": [
+    {
+      "canonical_projection_id": "projection:synthetic-points-hist-stale",
+      "canonical_player_id": "player:synthetic-guard-a",
+      "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+      "market": "points",
+      "mean": 21.0,
+      "is_historical": true,
+      "model_version": "none",
+      "rules_version": "2026-10-29.nba-props-angles",
+      "snapshot_id": "snapshot:synthetic-points-stale",
+      "projected_at": "2026-11-01T22:45:00Z",
+      "available_at": "2026-11-01T22:45:00Z",
+      "source_ids": [{"provider_id": "synthetic-projections", "native_id": "hist-stale-1"}]
+    }
+  ],
+  "historical_required": true,
+  "availability": {
+    "snapshot_id": "snapshot:synthetic-availability-1",
+    "status_known": true,
+    "injury_news": false,
+    "available_at": "2026-11-01T22:00:00Z"
+  },
+  "minutes": {
+    "snapshot_id": "snapshot:synthetic-minutes-1",
+    "known": true,
+    "expected_minutes": 34.0,
+    "changed": false,
+    "restricted": false,
+    "available_at": "2026-11-01T22:00:00Z"
+  },
+  "role": {
+    "snapshot_id": "snapshot:synthetic-role-1",
+    "changed": false,
+    "available_at": "2026-11-01T22:00:00Z"
+  },
+  "requested_adjustments": []
+}

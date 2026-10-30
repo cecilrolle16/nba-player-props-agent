@@ -1,0 +1,10 @@
+version: 1
+timezone: UTC
+jobs:
+  - job_id: pregame-points-assists-rebounds
+    description: Synthetic daily pregame slate for points, assists, and rebounds.
+    run_at: "16:00"
+    markets: [points, assists, rebounds]
+    historical_projections_required: true
+    injury_freshness_rule: stale_injury_report
+    adjustments_enabled: false

@@ -1,0 +1,30 @@
+version: 1
+providers:
+  - provider_id: synthetic-schedule
+    enabled: false
+    capabilities: [schedules]
+    supported_markets: []
+  - provider_id: synthetic-roster
+    enabled: false
+    capabilities: [rosters]
+    supported_markets: []
+  - provider_id: synthetic-logs
+    enabled: false
+    capabilities: [player_logs]
+    supported_markets: []
+  - provider_id: synthetic-context
+    enabled: false
+    capabilities: [team_context]
+    supported_markets: []
+  - provider_id: synthetic-injuries
+    enabled: false
+    capabilities: [injuries]
+    supported_markets: []
+  - provider_id: synthetic-markets
+    enabled: false
+    capabilities: [markets]
+    supported_markets: [points, assists, rebounds]
+  - provider_id: synthetic-projections
+    enabled: false
+    capabilities: [projections]
+    supported_markets: [points, assists, rebounds]
