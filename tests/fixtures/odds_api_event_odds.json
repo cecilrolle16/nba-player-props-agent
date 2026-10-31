@@ -1,0 +1,40 @@
+{
+  "id": "a512a48a58c4329048174217b2cc7ce0",
+  "sport_key": "basketball_nba",
+  "sport_title": "NBA",
+  "commence_time": "2026-11-02T00:00:00Z",
+  "home_team": "Los Angeles Lakers",
+  "away_team": "Houston Rockets",
+  "bookmakers": [
+    {
+      "key": "draftkings",
+      "title": "DraftKings",
+      "markets": [
+        {
+          "key": "player_points",
+          "last_update": "2026-11-01T21:50:00Z",
+          "outcomes": [
+            {"name": "Over", "description": "Synthetic Guard A", "price": -110, "point": 24.5},
+            {"name": "Under", "description": "Synthetic Guard A", "price": -110, "point": 24.5}
+          ]
+        },
+        {
+          "key": "player_assists",
+          "last_update": "2026-11-01T21:50:00Z",
+          "outcomes": [
+            {"name": "Over", "description": "Synthetic Guard A", "price": -120, "point": 6.5},
+            {"name": "Under", "description": "Synthetic Guard A", "price": 100, "point": 6.5}
+          ]
+        },
+        {
+          "key": "player_rebounds",
+          "last_update": "2026-11-01T21:50:00Z",
+          "outcomes": [
+            {"name": "Over", "description": "Synthetic Guard A", "price": -105, "point": 7.5},
+            {"name": "Under", "description": "Synthetic Guard A", "price": -115, "point": 7.5}
+          ]
+        }
+      ]
+    }
+  ]
+}

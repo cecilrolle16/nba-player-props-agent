@@ -25,6 +25,7 @@ def test_shipped_configuration_is_available():
     env_status, values = load_env_example(ROOT / ".env.example")
     assert env_status.state is AnalysisState.AVAILABLE
     assert values["ODDS_API_KEY"] == ""
+    assert values["THE_ODDS_API_KEY"] == ""
     assert values["AWS_ACCESS_KEY_ID"] == ""
     assert values["AWS_SECRET_ACCESS_KEY"] == ""
 

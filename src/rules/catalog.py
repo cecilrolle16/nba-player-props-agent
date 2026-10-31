@@ -14,6 +14,8 @@ from contracts.configuration import (
     load_env_example,
     load_nba_api_log_settings,
     load_nba_api_schedule_settings,
+    load_odds_api_settings,
+    load_odds_api_teams,
     load_provider_file,
     load_schedule_file,
     load_team_abbreviations,
@@ -197,7 +199,23 @@ def load_foundation(root: Path) -> FoundationReport:
         if not team_map_path.is_absolute():
             team_map_path = root / team_map_path
         team_map_status, _team_map = load_team_abbreviations(team_map_path)
-    for status in (provider_status, schedule_status, env_status, logs_status, api_schedule_status, team_map_status):
+    odds_status, odds_settings = load_odds_api_settings(root / "config" / "odds-api.example.yaml")
+    odds_team_status = ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration")
+    if odds_settings is not None:
+        odds_team_path = Path(odds_settings.team_names)
+        if not odds_team_path.is_absolute():
+            odds_team_path = root / odds_team_path
+        odds_team_status, _odds_teams = load_odds_api_teams(odds_team_path)
+    for status in (
+        provider_status,
+        schedule_status,
+        env_status,
+        logs_status,
+        api_schedule_status,
+        team_map_status,
+        odds_status,
+        odds_team_status,
+    ):
         if status.state is not AnalysisState.AVAILABLE and status.reason is not None:
             reasons.append(status.reason)
     if schedules is not None:

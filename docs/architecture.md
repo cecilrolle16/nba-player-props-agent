@@ -1,6 +1,6 @@
 # Architecture
 
-This repository is the contract layer for an NBA pregame points, assists, and rebounds analysis agent. It defines the records, provider boundary, configuration, and rule audit. It does not project stats, call vendors, or deploy.
+This repository is the contract layer for an NBA pregame points, assists, and rebounds analysis agent. It defines the records, provider boundary, configuration, and rule audit. It does not project stats or deploy. The base provider interface does not call the network.
 
 ## Layers
 
@@ -10,6 +10,7 @@ config/*.example.yaml ────► validated configuration
 provider quote / report ──► canonical record or unavailable/skip
 ProviderAdapter.fetch ────► live_integration_not_implemented
 nba_api player logs ──────► PlayerGameLog or a quarantined row
+odds-api event odds ──────► MarketSnapshot or a quarantined quote
 ```
 
 Canonical records live in `src/contracts/`. The adapter interface lives in `src/ingestion/adapters/base.py`. Rule evaluation lives in `src/rules/`.
@@ -48,6 +49,8 @@ Example providers are disabled. `ProviderAdapter.fetch` checks the declaration a
 `NbaApiScheduleAdapter` calls `scheduleleaguev2` once per season. Canonical game ids are `game:` plus the source game id. Canonical team ids are `team:` plus the source team id. A maintained abbreviation map checks that the tricode and the team id name the same team. Regular-season ids start with `002` and playoff ids start with `004`. A player-log matchup is accepted only when those sides agree with the schedule row. `tip_at` is the source UTC tip. Schedule `available_at` is the schedule retrieval time, and its snapshot id is separate from the player-log snapshot.
 
 A current extract cannot establish that the same payload was available at an earlier cutoff. On a joined record, `log_retrieved_at` stays the player-log retrieval time. `available_at` is not earlier than both that time and the schedule retrieval time. In strict point-in-time mode, a cutoff before the schedule retrieval does not use that later mapping.
+
+`OddsApiMarketAdapter` calls The Odds API v4 events list and then one event-odds request for `player_points`, `player_assists`, and `player_rebounds`. The documented events cost is 0. The documented event-odds maximum is unique requested markets times region units, and the shipped cap is 3 credits. `captured_at` is the market `last_update`. `available_at` is the retrieval time. An over and under are stored only when they share the player, event, stat, line, sportsbook, and source update time. Player ids come from an explicit name map. The event must match one schedule game on home team, away team, and UTC tip. Quotes after tip, after the unvalidated 900-second age, or with a source update later than retrieval are quarantined. `fetch("markets")` without an event id does not call the network.
 
 ## States
 

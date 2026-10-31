@@ -1,0 +1,19 @@
+version: 1
+provider_id: odds-api
+endpoint: event-odds
+sport: basketball_nba
+region: us
+markets:
+  - player_points
+  - player_assists
+  - player_rebounds
+bookmakers: []
+timeout_seconds: 30
+max_retries: 2
+min_interval_seconds: 1.0
+cache_dir: data/cache/odds-api
+api_key_env: THE_ODDS_API_KEY
+team_names: config/odds-api-teams.json
+max_quote_age_seconds: 900
+freshness_limit_validated: false
+max_request_credits: 3

@@ -13,6 +13,7 @@ from contracts.common import AnalysisState, Capability, Market, StrictModel
 
 SECRET_KEYS = (
     "ODDS_API_KEY",
+    "THE_ODDS_API_KEY",
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_REGION",
@@ -31,6 +32,7 @@ JOB_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 IMPLEMENTED_PROVIDER_CAPABILITIES = {
     ("nba-api", frozenset({Capability.PLAYER_LOGS})),
     ("nba-api", frozenset({Capability.PLAYER_LOGS, Capability.SCHEDULES})),
+    ("odds-api", frozenset({Capability.MARKETS})),
 }
 
 
@@ -197,6 +199,105 @@ class NbaApiLogSettings(StrictModel):
     min_interval_seconds: float = Field(ge=0.6, le=30)
     cache_dir: str = Field(min_length=1)
     season_type: Literal["Regular Season"]
+
+
+class OddsApiTeamName(StrictModel):
+    name: str = Field(min_length=1)
+    nba_team_id: str = Field(pattern=r"^\d{10}$")
+
+
+class OddsApiTeamNameFile(StrictModel):
+    version: Literal[1]
+    source: str = Field(min_length=1)
+    teams: tuple[OddsApiTeamName, ...]
+
+    @field_validator("teams")
+    @classmethod
+    def unique_teams(cls, value: tuple[OddsApiTeamName, ...]) -> tuple[OddsApiTeamName, ...]:
+        names = [item.name.casefold() for item in value]
+        team_ids = [item.nba_team_id for item in value]
+        if len(names) != len(set(names)) or len(team_ids) != len(set(team_ids)):
+            raise ValueError("duplicate team identity")
+        if len(value) < 1:
+            raise ValueError("team name map is empty")
+        return value
+
+
+class OddsApiSettings(StrictModel):
+    """Operational limits for one event-odds request. This file does not enable a fetch.
+
+    max_quote_age_seconds is an unvalidated operational default. freshness_limit_validated
+    stays false until a measured threshold replaces it.
+    """
+
+    version: Literal[1]
+    provider_id: Literal["odds-api"]
+    endpoint: Literal["event-odds"]
+    sport: Literal["basketball_nba"]
+    region: str = Field(pattern=r"^[a-z0-9]{2,12}$")
+    markets: tuple[Literal["player_points", "player_assists", "player_rebounds"], ...]
+    bookmakers: tuple[str, ...] = ()
+    timeout_seconds: float = Field(gt=0, le=30)
+    max_retries: int = Field(ge=0, le=2)
+    min_interval_seconds: float = Field(ge=0.6, le=30)
+    cache_dir: str = Field(min_length=1)
+    api_key_env: Literal["THE_ODDS_API_KEY"]
+    team_names: str = Field(min_length=1)
+    max_quote_age_seconds: int = Field(gt=0, le=3600)
+    freshness_limit_validated: Literal[False]
+    max_request_credits: int = Field(ge=1, le=3)
+
+    @field_validator("markets")
+    @classmethod
+    def required_markets(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        expected = ("player_points", "player_assists", "player_rebounds")
+        if value != expected:
+            raise ValueError("markets must be player_points, player_assists, and player_rebounds")
+        return value
+
+    @field_validator("bookmakers")
+    @classmethod
+    def bookmaker_keys(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(value) > 10:
+            raise ValueError("bookmakers must stay within one region unit")
+        if len(value) != len(set(value)):
+            raise ValueError("bookmakers must be unique")
+        for item in value:
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_]{0,40}", item):
+                raise ValueError("bookmaker key is not a provider key")
+        return value
+
+
+def validate_odds_api_settings(payload: object) -> tuple[ConfigStatus, OddsApiSettings | None]:
+    try:
+        parsed = OddsApiSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_odds_api_settings(path: Path) -> tuple[ConfigStatus, OddsApiSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_odds_api_settings(payload)
+
+
+def validate_odds_api_teams(payload: object) -> tuple[ConfigStatus, OddsApiTeamNameFile | None]:
+    try:
+        parsed = OddsApiTeamNameFile.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_odds_api_teams(path: Path) -> tuple[ConfigStatus, OddsApiTeamNameFile | None]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_odds_api_teams(payload)
 
 
 def validate_nba_api_log_settings(payload: object) -> tuple[ConfigStatus, NbaApiLogSettings | None]:
