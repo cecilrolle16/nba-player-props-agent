@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "source": "Synthetic subset of the maintained NBA abbreviation map.",
+  "teams": [
+    {"abbreviation": "BOS", "nba_team_id": "1610612738"},
+    {"abbreviation": "HOU", "nba_team_id": "1610612745"},
+    {"abbreviation": "LAL", "nba_team_id": "1610612747"}
+  ]
+}

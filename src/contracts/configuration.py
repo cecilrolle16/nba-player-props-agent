@@ -1,7 +1,9 @@
 """Validated provider, schedule, and env-example configuration."""
 
 from pathlib import Path
+import json
 import re
+from typing import Literal
 
 import yaml
 from pydantic import Field, ValidationError, field_validator
@@ -26,6 +28,10 @@ REQUIRED_ENV_KEYS = (
 RUN_AT = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 PROVIDER_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 JOB_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
+IMPLEMENTED_PROVIDER_CAPABILITIES = {
+    ("nba-api", frozenset({Capability.PLAYER_LOGS})),
+    ("nba-api", frozenset({Capability.PLAYER_LOGS, Capability.SCHEDULES})),
+}
 
 
 class ConfigStatus(StrictModel):
@@ -132,15 +138,113 @@ def validate_providers(payload: object) -> tuple[ConfigStatus, ProviderFile | No
                 None,
             )
         if provider.enabled:
-            return (
-                ConfigStatus(
-                    state=AnalysisState.UNAVAILABLE,
-                    reason="live_provider_not_implemented",
-                    detail=provider.provider_id,
-                ),
-                None,
-            )
+            implemented = (provider.provider_id, frozenset(provider.capabilities))
+            if implemented not in IMPLEMENTED_PROVIDER_CAPABILITIES:
+                return (
+                    ConfigStatus(
+                        state=AnalysisState.UNAVAILABLE,
+                        reason="live_provider_not_implemented",
+                        detail=provider.provider_id,
+                    ),
+                    None,
+                )
     return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+class TeamAbbreviation(StrictModel):
+    abbreviation: str = Field(pattern=r"^[A-Z]{2,3}$")
+    nba_team_id: str = Field(pattern=r"^\d{10}$")
+
+
+class TeamAbbreviationFile(StrictModel):
+    version: Literal[1]
+    source: str = Field(min_length=1)
+    teams: tuple[TeamAbbreviation, ...]
+
+    @field_validator("teams")
+    @classmethod
+    def unique_teams(cls, value: tuple[TeamAbbreviation, ...]) -> tuple[TeamAbbreviation, ...]:
+        abbreviations = [item.abbreviation for item in value]
+        team_ids = [item.nba_team_id for item in value]
+        if len(abbreviations) != len(set(abbreviations)) or len(team_ids) != len(set(team_ids)):
+            raise ValueError("duplicate team identity")
+        if len(value) < 1:
+            raise ValueError("team map is empty")
+        return value
+
+
+class NbaApiScheduleSettings(StrictModel):
+    """Operational limits for the schedule identity adapter. This file does not enable a fetch."""
+
+    version: Literal[1]
+    provider_id: Literal["nba-api"]
+    endpoint: Literal["scheduleleaguev2"]
+    timeout_seconds: float = Field(gt=0, le=30)
+    max_retries: int = Field(ge=0, le=2)
+    min_interval_seconds: float = Field(ge=0.6, le=30)
+    cache_dir: str = Field(min_length=1)
+    team_map: str = Field(min_length=1)
+
+
+class NbaApiLogSettings(StrictModel):
+    """Operational limits for the playergamelog adapter. This file does not enable a fetch."""
+
+    version: Literal[1]
+    provider_id: Literal["nba-api"]
+    endpoint: Literal["playergamelog"]
+    timeout_seconds: float = Field(gt=0, le=30)
+    max_retries: int = Field(ge=0, le=2)
+    min_interval_seconds: float = Field(ge=0.6, le=30)
+    cache_dir: str = Field(min_length=1)
+    season_type: Literal["Regular Season"]
+
+
+def validate_nba_api_log_settings(payload: object) -> tuple[ConfigStatus, NbaApiLogSettings | None]:
+    try:
+        parsed = NbaApiLogSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_nba_api_log_settings(path: Path) -> tuple[ConfigStatus, NbaApiLogSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_nba_api_log_settings(payload)
+
+
+def validate_nba_api_schedule_settings(payload: object) -> tuple[ConfigStatus, NbaApiScheduleSettings | None]:
+    try:
+        parsed = NbaApiScheduleSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_nba_api_schedule_settings(path: Path) -> tuple[ConfigStatus, NbaApiScheduleSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_nba_api_schedule_settings(payload)
+
+
+def validate_team_abbreviations(payload: object) -> tuple[ConfigStatus, TeamAbbreviationFile | None]:
+    try:
+        parsed = TeamAbbreviationFile.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_team_abbreviations(path: Path) -> tuple[ConfigStatus, TeamAbbreviationFile | None]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_team_abbreviations(payload)
 
 
 def validate_schedules(payload: object) -> tuple[ConfigStatus, ScheduleFile | None]:

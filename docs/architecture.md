@@ -9,6 +9,7 @@ config/custom-rules.json ──► rules catalog ──► deterministic audit
 config/*.example.yaml ────► validated configuration
 provider quote / report ──► canonical record or unavailable/skip
 ProviderAdapter.fetch ────► live_integration_not_implemented
+nba_api player logs ──────► PlayerGameLog or a quarantined row
 ```
 
 Canonical records live in `src/contracts/`. The adapter interface lives in `src/ingestion/adapters/base.py`. Rule evaluation lives in `src/rules/`.
@@ -41,6 +42,12 @@ Raw quotes use `MarketQuoteInput` so a bad price can be represented and rejected
 The only capability names are `schedules`, `rosters`, `player_logs`, `team_context`, `injuries`, `markets`, and `projections`. Anything else is `unknown_provider_capability`. A known capability the provider did not declare is `unsupported_capability`. A market outside that provider's list is `unsupported_market`.
 
 Example providers are disabled. `ProviderAdapter.fetch` checks the declaration and then returns `live_integration_not_implemented`. It has no network client.
+
+`NbaApiPlayerLogAdapter` calls `nba_api`'s `PlayerGameLog` endpoint for one player and one season type, caches the raw rows under `data/`, and maps them to `PlayerGameLog`. `available_at` on those records is the retrieval time. The endpoint has no as-of parameter, so the result is marked point-in-time limited. Unmapped ids, DNP rows, missing counting stats, same-day or later games, and duplicate games are quarantined instead of being coerced into a played line. `fetch("player_logs")` without a player, season, and cutoff does not call the network.
+
+`NbaApiScheduleAdapter` calls `scheduleleaguev2` once per season. Canonical game ids are `game:` plus the source game id. Canonical team ids are `team:` plus the source team id. A maintained abbreviation map checks that the tricode and the team id name the same team. Regular-season ids start with `002` and playoff ids start with `004`. A player-log matchup is accepted only when those sides agree with the schedule row. `tip_at` is the source UTC tip. Schedule `available_at` is the schedule retrieval time, and its snapshot id is separate from the player-log snapshot.
+
+A current extract cannot establish that the same payload was available at an earlier cutoff. On a joined record, `log_retrieved_at` stays the player-log retrieval time. `available_at` is not earlier than both that time and the schedule retrieval time. In strict point-in-time mode, a cutoff before the schedule retrieval does not use that later mapping.
 
 ## States
 

@@ -2,7 +2,7 @@
 
 In-development portfolio project. This is a local foundation for pregame NBA player props: points, assists, and rebounds.
 
-It does not call live providers, calculate a projection, make a betting recommendation, or deploy to AWS.
+It does not calculate a projection, make a betting recommendation, or deploy to AWS. The base provider interface does not call the network. One adapter can fetch historical regular-season player game logs through `nba_api` when that adapter is invoked.
 
 ## Goal
 
@@ -10,17 +10,22 @@ Build an agent that reviews an NBA slate before tip and accepts or refuses a poi
 
 ## Current status
 
-The contract layer is in place. `python -m pytest` last passed with 61 tests on Python 3.12.10.
+The contract layer is in place, plus historical player-log and schedule-identity adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 77 tests in 0.89s on Python 3.12.10. Those tests do not call the network.
 
 What exists now:
 
 - Typed records for schedules, rosters, player logs, team context, injuries, market snapshots, stored projections, and analysis results
 - Canonical ids, source ids, UTC timestamps, `available_at`, snapshot references, and rules/model versions
-- A provider interface that declares capabilities and refuses live fetches
+- A provider interface that declares capabilities and refuses undeclared live fetches
+- An `nba_api` player-log adapter with local caching, timeouts, bounded retries, and request pacing
+- A schedule-identity adapter that maps source game and team ids, with regular season and playoffs kept separate
+- Separate log and schedule retrieval times and snapshot ids. A joined record is not marked available before both sources were retrieved
 - Validated example configuration in `config/` and `.env.example`
 - A versioned rules catalog and a deterministic audit
 
 `model_version` is `none`. `rules_version` is `2026-10-29.nba-props-angles`. Numeric hypothesis adjustments are disabled and their magnitudes are unset. Fixtures use synthetic players, teams, and books.
+
+Current ingestion limits: the abbreviation map is the current 30 teams, player identity is an explicit map, the live check covered regular season only, and neutral-site games are quarantined. The accepted schedule directory is not complete league coverage. Downloaded provider data stays in `data/`, which is gitignored.
 
 Input gates already reject malformed odds, unresolved players, stale injury reports, unknown provider capabilities, missing history, and missing availability or minutes evidence. Three custom angle policies are audited on every evaluation:
 
@@ -36,7 +41,7 @@ Details and open decisions are in [docs/build-status.md](docs/build-status.md). 
 
 These pieces are not implemented.
 
-1. **Ingestion.** Adapters will map schedule, roster, log, injury, and odds providers into the canonical records. `ProviderAdapter.fetch` currently returns `live_integration_not_implemented`.
+1. **Ingestion.** Historical player logs and schedule game identity can be read through the `nba_api` adapters. Roster, injury, and odds adapters are not implemented. `ProviderAdapter.fetch` still returns `live_integration_not_implemented` unless the caller uses the player-log or schedule adapter with an explicit season query.
 2. **Projection.** A later model may calculate a projection. Stored projection records can already be supplied as inputs. This repository does not calculate one, and it does not turn a streak or a bounce-back into a confidence boost.
 3. **Reasoning.** A ChatGPT-compatible model is planned as a reasoning layer over records the code already validated.
 4. **Deployment.** The scheduled job is planned to run on AWS. No infrastructure, credentials, or deploy scripts are in this repository.

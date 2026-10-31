@@ -21,6 +21,7 @@ def test_canonical_records_round_trip():
     schedule = ScheduleGame.model_validate(
         {
             "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+            "snapshot_id": "snapshot:synthetic-schedule-1",
             "season": "2025-26",
             "home_team_id": "team:synthetic-home",
             "away_team_id": "team:synthetic-away",

@@ -9,7 +9,15 @@ from typing import Literal
 from pydantic import Field, ValidationError, model_validator
 
 from contracts.common import AnalysisState, Market, StrictModel
-from contracts.configuration import load_env_example, load_provider_file, load_schedule_file
+from contracts.configuration import (
+    ConfigStatus,
+    load_env_example,
+    load_nba_api_log_settings,
+    load_nba_api_schedule_settings,
+    load_provider_file,
+    load_schedule_file,
+    load_team_abbreviations,
+)
 
 REQUIRED_RULE_IDS = frozenset(
     {
@@ -181,7 +189,15 @@ def load_foundation(root: Path) -> FoundationReport:
     provider_status, _providers = load_provider_file(root / "config" / "providers.example.yaml")
     schedule_status, schedules = load_schedule_file(root / "config" / "schedules.example.yaml")
     env_status, env_values = load_env_example(root / ".env.example")
-    for status in (provider_status, schedule_status, env_status):
+    logs_status, _logs = load_nba_api_log_settings(root / "config" / "nba-api-logs.example.yaml")
+    api_schedule_status, api_schedule = load_nba_api_schedule_settings(root / "config" / "nba-api-schedule.example.yaml")
+    team_map_status = ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration")
+    if api_schedule is not None:
+        team_map_path = Path(api_schedule.team_map)
+        if not team_map_path.is_absolute():
+            team_map_path = root / team_map_path
+        team_map_status, _team_map = load_team_abbreviations(team_map_path)
+    for status in (provider_status, schedule_status, env_status, logs_status, api_schedule_status, team_map_status):
         if status.state is not AnalysisState.AVAILABLE and status.reason is not None:
             reasons.append(status.reason)
     if schedules is not None:

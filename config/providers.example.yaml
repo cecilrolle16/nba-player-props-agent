@@ -28,3 +28,7 @@ providers:
     enabled: false
     capabilities: [projections]
     supported_markets: [points, assists, rebounds]
+  - provider_id: nba-api
+    enabled: false
+    capabilities: [player_logs, schedules]
+    supported_markets: []

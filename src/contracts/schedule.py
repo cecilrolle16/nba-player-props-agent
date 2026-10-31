@@ -8,6 +8,7 @@ from contracts.common import (
     UTCDateTime,
     GameId,
     GameStatus,
+    SnapshotId,
     SourceId,
     StrictModel,
     TeamId,
@@ -17,6 +18,7 @@ from contracts.common import (
 
 class ScheduleGame(StrictModel):
     canonical_game_id: GameId
+    snapshot_id: SnapshotId
     season: str = Field(pattern=r"^\d{4}-\d{2}$")
     home_team_id: TeamId
     away_team_id: TeamId
