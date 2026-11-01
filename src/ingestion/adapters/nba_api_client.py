@@ -33,6 +33,21 @@ def fetch_playergamelog_rows(
     return cast(list[dict[str, object]], rows)
 
 
+def fetch_commonteamroster_rows(*, team_id: str, season: str, timeout: float) -> list[dict[str, object]]:
+    """Call stats.nba.com commonteamroster through nba_api for one team and season."""
+
+    from nba_api.stats.endpoints.commonteamroster import CommonTeamRoster
+
+    endpoint = CommonTeamRoster(team_id=team_id, season=season, timeout=timeout)
+    payload = endpoint.common_team_roster.get_dict()
+    headers = payload["headers"]
+    data = payload["data"]
+    rows: list[dict[str, object]] = []
+    for item in data:
+        rows.append({str(header): value for header, value in zip(headers, item)})
+    return cast(list[dict[str, object]], rows)
+
+
 def fetch_schedule_rows(*, season: str, timeout: float) -> list[dict[str, object]]:
     """Call stats.nba.com scheduleleaguev2 through nba_api.
 

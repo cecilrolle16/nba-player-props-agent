@@ -75,6 +75,11 @@ TEAM_ID = re.compile(r"^team:[a-z0-9][a-z0-9-]{0,80}$")
 GAME_ID = re.compile(r"^game:[a-z0-9][a-z0-9-]{0,80}$")
 SNAPSHOT_ID = re.compile(r"^snapshot:[a-z0-9][a-z0-9-]{0,80}$")
 PROJECTION_ID = re.compile(r"^projection:[a-z0-9][a-z0-9-]{0,80}$")
+FEATURE_ID = re.compile(r"^feature:[a-z0-9][a-z0-9-]{0,80}$")
+COMPARISON_ID = re.compile(r"^comparison:[a-z0-9][a-z0-9-]{0,80}$")
+DECISION_ID = re.compile(r"^decision:[a-z0-9][a-z0-9-]{0,80}$")
+SETTLEMENT_ID = re.compile(r"^settlement:[a-z0-9][a-z0-9-]{0,80}$")
+REPORT_ID = re.compile(r"^report:[a-z0-9][a-z0-9-]{0,80}$")
 AMERICAN_ODDS = re.compile(r"^[+-](?:100|[1-9]\d{2,5})$")
 
 
@@ -92,6 +97,11 @@ TeamId = Annotated[str, AfterValidator(_id_validator(TEAM_ID, "team"))]
 GameId = Annotated[str, AfterValidator(_id_validator(GAME_ID, "game"))]
 SnapshotId = Annotated[str, AfterValidator(_id_validator(SNAPSHOT_ID, "snapshot"))]
 ProjectionId = Annotated[str, AfterValidator(_id_validator(PROJECTION_ID, "projection"))]
+FeatureId = Annotated[str, AfterValidator(_id_validator(FEATURE_ID, "feature"))]
+ComparisonId = Annotated[str, AfterValidator(_id_validator(COMPARISON_ID, "comparison"))]
+DecisionId = Annotated[str, AfterValidator(_id_validator(DECISION_ID, "decision"))]
+SettlementId = Annotated[str, AfterValidator(_id_validator(SETTLEMENT_ID, "settlement"))]
+ReportId = Annotated[str, AfterValidator(_id_validator(REPORT_ID, "report"))]
 
 
 class SourceId(StrictModel):

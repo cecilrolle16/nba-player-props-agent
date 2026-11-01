@@ -1,0 +1,8 @@
+version: 1
+provider_id: nba-api
+endpoint: commonteamroster
+timeout_seconds: 30
+max_retries: 2
+min_interval_seconds: 1.0
+cache_dir: data/cache/nba-api
+team_map: config/nba-team-abbreviations.json

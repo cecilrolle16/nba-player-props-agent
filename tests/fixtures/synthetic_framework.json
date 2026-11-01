@@ -1,0 +1,34 @@
+{
+  "schedule": {
+    "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+    "snapshot_id": "snapshot:synthetic-schedule-1",
+    "season": "2026-27",
+    "home_team_id": "team:synthetic-home",
+    "away_team_id": "team:synthetic-away",
+    "status": "scheduled",
+    "tip_at": "2026-11-02T00:00:00Z",
+    "available_at": "2026-11-01T18:00:00Z",
+    "source_ids": [{"provider_id": "synthetic-schedule", "native_id": "game-1"}]
+  },
+  "roster": {
+    "canonical_player_id": "player:synthetic-guard-a",
+    "canonical_team_id": "team:synthetic-home",
+    "season": "2026-27",
+    "display_name": "Synthetic Guard A",
+    "active": true,
+    "available_at": "2026-11-01T18:05:00Z",
+    "source_ids": [{"provider_id": "synthetic-roster", "native_id": "guard-a"}]
+  },
+  "player_log": {
+    "canonical_player_id": "player:synthetic-guard-a",
+    "canonical_game_id": "game:synthetic-2026-11-01-home-away",
+    "canonical_team_id": "team:synthetic-home",
+    "points": 22,
+    "assists": 6,
+    "rebounds": 4,
+    "minutes": 34.0,
+    "available_at": "2026-11-01T18:10:00Z",
+    "source_ids": [{"provider_id": "synthetic-logs", "native_id": "log-guard-a"}]
+  },
+  "log_snapshot_id": "snapshot:synthetic-log-1"
+}

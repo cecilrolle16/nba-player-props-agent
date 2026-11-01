@@ -42,6 +42,8 @@ JOB_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 IMPLEMENTED_PROVIDER_CAPABILITIES = {
     ("nba-api", frozenset({Capability.PLAYER_LOGS})),
     ("nba-api", frozenset({Capability.PLAYER_LOGS, Capability.SCHEDULES})),
+    ("nba-api", frozenset({Capability.ROSTERS})),
+    ("nba-api", frozenset({Capability.PLAYER_LOGS, Capability.SCHEDULES, Capability.ROSTERS})),
     ("odds-api", frozenset({Capability.MARKETS})),
 }
 
@@ -183,6 +185,19 @@ class TeamAbbreviationFile(StrictModel):
         if len(value) < 1:
             raise ValueError("team map is empty")
         return value
+
+
+class NbaApiRosterSettings(StrictModel):
+    """Operational limits for one team roster. This file does not enable a fetch."""
+
+    version: Literal[1]
+    provider_id: Literal["nba-api"]
+    endpoint: Literal["commonteamroster"]
+    timeout_seconds: float = Field(gt=0, le=30)
+    max_retries: int = Field(ge=0, le=2)
+    min_interval_seconds: float = Field(ge=0.6, le=30)
+    cache_dir: str = Field(min_length=1)
+    team_map: str = Field(min_length=1)
 
 
 class NbaApiScheduleSettings(StrictModel):
@@ -391,6 +406,22 @@ def load_nba_api_log_settings(path: Path) -> tuple[ConfigStatus, NbaApiLogSettin
     except OSError as exc:
         return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
     return validate_nba_api_log_settings(payload)
+
+
+def validate_nba_api_roster_settings(payload: object) -> tuple[ConfigStatus, NbaApiRosterSettings | None]:
+    try:
+        parsed = NbaApiRosterSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_nba_api_roster_settings(path: Path) -> tuple[ConfigStatus, NbaApiRosterSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_nba_api_roster_settings(payload)
 
 
 def validate_nba_api_schedule_settings(payload: object) -> tuple[ConfigStatus, NbaApiScheduleSettings | None]:

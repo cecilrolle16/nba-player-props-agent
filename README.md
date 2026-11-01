@@ -10,7 +10,7 @@ Build an agent that reviews an NBA slate before tip and accepts or refuses a poi
 
 ## Current status
 
-The contract layer is in place, plus historical player-log, schedule-identity, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 101 tests in 1.42s on Python 3.12.10. Those tests do not call the network.
+The contract layer is in place, plus historical player-log, schedule-identity, roster, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 106 tests in 1.38s on Python 3.12.10. Those tests do not call the network.
 
 What exists now:
 
@@ -19,6 +19,7 @@ What exists now:
 - A provider interface that declares capabilities and refuses undeclared live fetches
 - An `nba_api` player-log adapter with local caching, timeouts, bounded retries, and request pacing
 - A schedule-identity adapter that maps source game and team ids, with regular season and playoffs kept separate
+- A roster adapter for one team and one season. Player and team ids come from the source row, and `available_at` is the retrieval time
 - Separate log and schedule retrieval times and snapshot ids. A joined record is not marked available before both sources were retrieved
 - An Odds API adapter for one event's `player_points`, `player_assists`, and `player_rebounds` markets. Source update time and retrieval time stay separate. The 900-second quote age is an unvalidated default
 - Validated example configuration in `config/` and `.env.example`
@@ -42,7 +43,7 @@ Details and open decisions are in [docs/build-status.md](docs/build-status.md). 
 
 These pieces are not implemented.
 
-1. **Ingestion.** Historical player logs, schedule game identity, and one-event player-prop odds can be read through the adapters. Roster and injury adapters are not implemented. `ProviderAdapter.fetch` still returns `live_integration_not_implemented` unless the caller uses an adapter with an explicit query.
+1. **Ingestion.** Historical player logs, schedule game identity, one-team rosters, and one-event player-prop odds can be read through the adapters. An injury adapter is not implemented. `ProviderAdapter.fetch` still returns `live_integration_not_implemented` unless the caller uses an adapter with an explicit query.
 2. **Projection.** A later model may calculate a projection. Stored projection records can already be supplied as inputs. This repository does not calculate one, and it does not turn a streak or a bounce-back into a confidence boost.
 3. **Reasoning.** A ChatGPT-compatible model is planned as a reasoning layer over records the code already validated.
 4. **Deployment.** The scheduled job is planned to run on AWS. No infrastructure, credentials, or deploy scripts are in this repository.
