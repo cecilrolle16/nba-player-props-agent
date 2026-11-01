@@ -10,7 +10,7 @@ Build an agent that reviews an NBA slate before tip and accepts or refuses a poi
 
 ## Current status
 
-The contract layer is in place, plus historical player-log, schedule-identity, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 91 tests in 0.78s on Python 3.12.10. Those tests do not call the network.
+The contract layer is in place, plus historical player-log, schedule-identity, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 101 tests in 1.42s on Python 3.12.10. Those tests do not call the network.
 
 What exists now:
 
@@ -26,7 +26,7 @@ What exists now:
 
 `model_version` is `none`. `rules_version` is `2026-10-29.nba-props-angles`. Numeric hypothesis adjustments are disabled and their magnitudes are unset. Fixtures use synthetic players, teams, and books.
 
-Current ingestion limits: the abbreviation and team-name maps are the current 30 teams, player identity is an explicit map, neutral-site games are quarantined, and an odds event is accepted only when the home team, away team, and UTC tip match one schedule game. The accepted schedule directory is not complete league coverage. The odds quote-age limit is unvalidated. Downloaded provider data stays in `data/`, which is gitignored.
+Current ingestion limits: the abbreviation and team-name maps are the current 30 teams, player identity is an explicit map with reviewed aliases and a recorded evidence time, neutral-site games are quarantined, and an odds event is accepted only when the home team, away team, season, and a UTC tip within 15 minutes match exactly one schedule game. The accepted schedule directory is not complete league coverage. The odds quote-age limit is unvalidated. Downloaded provider data stays in `data/`, which is gitignored.
 
 Input gates already reject malformed odds, unresolved players, stale injury reports, unknown provider capabilities, missing history, and missing availability or minutes evidence. Three custom angle policies are audited on every evaluation:
 

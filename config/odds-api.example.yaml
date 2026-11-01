@@ -14,6 +14,8 @@ min_interval_seconds: 1.0
 cache_dir: data/cache/odds-api
 api_key_env: THE_ODDS_API_KEY
 team_names: config/odds-api-teams.json
+player_map: config/odds-player-map.json
 max_quote_age_seconds: 900
 freshness_limit_validated: false
 max_request_credits: 3
+tip_tolerance_seconds: 900

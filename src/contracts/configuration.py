@@ -3,13 +3,23 @@
 from pathlib import Path
 import json
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
 import yaml
-from pydantic import Field, ValidationError, field_validator
+from pydantic import AfterValidator, Field, ValidationError, field_validator, model_validator
 
 from contracts.capabilities import declaration_status
-from contracts.common import AnalysisState, Capability, Market, StrictModel
+from contracts.common import (
+    UTCDateTime,
+    AnalysisState,
+    Capability,
+    Market,
+    PlayerId,
+    SourceId,
+    StrictModel,
+    TeamId,
+    require_sources,
+)
 
 SECRET_KEYS = (
     "ODDS_API_KEY",
@@ -223,6 +233,55 @@ class OddsApiTeamNameFile(StrictModel):
         return value
 
 
+class PlayerNameMapping(StrictModel):
+    """One reviewed provider spelling. Aliases are explicit; matching is not fuzzy."""
+
+    provider_name: str = Field(min_length=1)
+    source_name: str = Field(min_length=1)
+    aliases: tuple[str, ...] = ()
+    canonical_player_id: PlayerId
+    canonical_team_id: TeamId
+    season: str = Field(pattern=r"^\d{4}-\d{2}$")
+    available_at: UTCDateTime
+    source_ids: Annotated[tuple[SourceId, ...], AfterValidator(require_sources)]
+
+
+class PlayerNameMapFile(StrictModel):
+    version: Literal[1]
+    provider_id: Literal["odds-api"]
+    season: str = Field(pattern=r"^\d{4}-\d{2}$")
+    source: str = Field(min_length=1)
+    retrieved_at: UTCDateTime
+    players: tuple[PlayerNameMapping, ...]
+
+    @model_validator(mode="after")
+    def reviewed_names(self) -> "PlayerNameMapFile":
+        keys: dict[str, str] = {}
+        teams: dict[str, str] = {}
+        for item in self.players:
+            if item.season != self.season:
+                raise ValueError("player season must match the map season")
+            if item.available_at != self.retrieved_at:
+                raise ValueError("player evidence time must match the map retrieval")
+            if item.source_name != item.provider_name and item.source_name not in item.aliases:
+                raise ValueError("source spelling must be an explicit alias")
+            for raw in (item.provider_name, item.source_name, *item.aliases):
+                key = " ".join(raw.split()).casefold()
+                if key == "":
+                    raise ValueError("player name is empty")
+                prior = keys.get(key)
+                if prior is not None and prior != item.canonical_player_id:
+                    raise ValueError("duplicate player name")
+                keys[key] = item.canonical_player_id
+            prior_team = teams.get(item.canonical_player_id)
+            if prior_team is not None and prior_team != item.canonical_team_id:
+                raise ValueError("conflicting player team")
+            teams[item.canonical_player_id] = item.canonical_team_id
+        if len(self.players) < 1:
+            raise ValueError("player name map is empty")
+        return self
+
+
 class OddsApiSettings(StrictModel):
     """Operational limits for one event-odds request. This file does not enable a fetch.
 
@@ -243,9 +302,11 @@ class OddsApiSettings(StrictModel):
     cache_dir: str = Field(min_length=1)
     api_key_env: Literal["THE_ODDS_API_KEY"]
     team_names: str = Field(min_length=1)
+    player_map: str = Field(min_length=1)
     max_quote_age_seconds: int = Field(gt=0, le=3600)
     freshness_limit_validated: Literal[False]
     max_request_credits: int = Field(ge=1, le=3)
+    tip_tolerance_seconds: int = Field(ge=0, le=900)
 
     @field_validator("markets")
     @classmethod
@@ -290,6 +351,22 @@ def validate_odds_api_teams(payload: object) -> tuple[ConfigStatus, OddsApiTeamN
     except ValidationError as exc:
         return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
     return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def validate_player_name_map(payload: object) -> tuple[ConfigStatus, PlayerNameMapFile | None]:
+    try:
+        parsed = PlayerNameMapFile.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_player_name_map(path: Path) -> tuple[ConfigStatus, PlayerNameMapFile | None]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_player_name_map(payload)
 
 
 def load_odds_api_teams(path: Path) -> tuple[ConfigStatus, OddsApiTeamNameFile | None]:

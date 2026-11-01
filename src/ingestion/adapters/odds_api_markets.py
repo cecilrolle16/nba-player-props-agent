@@ -1,10 +1,13 @@
 """Map one Odds API event-odds payload into MarketSnapshot records.
 
-Provider field names stay in this module. Player ids come only from the
-explicit name map. A missing market stays missing. Over and under are stored
-only when they share the player, event, stat, line, sportsbook, and source
-update time. captured_at is that source update. available_at is the retrieval
-time.
+Provider field names stay in this module. Player ids come only from an
+explicit name map. A reviewed identity also carries team, season, and the
+time that evidence was retrieved. Matching is exact after case and whitespace
+normalization, or an explicit alias. A missing market stays missing. Over and
+under are stored only when they share the player, event, stat, line,
+sportsbook, and source update time. captured_at is that source update.
+available_at is the retrieval time. Later identity evidence does not rewrite
+those clocks and does not bypass the earlier-tip gate.
 """
 
 from collections import defaultdict
@@ -15,7 +18,7 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import Field, ValidationError, field_validator
 
@@ -25,12 +28,13 @@ from contracts.common import (
     SNAPSHOT_ID,
     UTCDateTime,
     AnalysisState,
+    GameId,
     Market,
     SourceId,
     StrictModel,
     require_utc,
 )
-from contracts.configuration import OddsApiSettings
+from contracts.configuration import OddsApiSettings, PlayerNameMapping
 from contracts.market import MarketSnapshot
 from ingestion.adapters.base import FetchResult, ProviderAdapter
 from ingestion.adapters.nba_api_schedule import GameDirectory
@@ -55,6 +59,7 @@ MARKET_FOR = {
     "player_rebounds": Market.REBOUNDS,
 }
 MARKET_CODE = {"player_points": "pts", "player_assists": "ast", "player_rebounds": "reb"}
+MATCH_METHOD = "home_away_season_within_tip_tolerance"
 
 
 class QuotaReport(StrictModel):
@@ -67,10 +72,25 @@ class QuarantinedQuote(StrictModel):
     reason: str
     event_id: str | None = None
     detail: str | None = None
+    market: str | None = None
+    identity_available_at: UTCDateTime | None = None
+
+
+class EventMatch(StrictModel):
+    """Both provider tip times stay intact. Neither clock replaces the other."""
+
+    method: Literal["home_away_season_within_tip_tolerance"]
+    season: str = Field(pattern=r"^\d{4}-\d{2}$")
+    schedule_tip_at: UTCDateTime
+    odds_commence_at: UTCDateTime
+    tip_delta_seconds: int
+    canonical_game_id: GameId
 
 
 class RetrievedQuote(StrictModel):
     record: MarketSnapshot
+    event_match: EventMatch
+    identity_available_at: UTCDateTime | None = None
 
 
 class OddsFetch(StrictModel):
@@ -80,6 +100,7 @@ class OddsFetch(StrictModel):
     retrieved_at: UTCDateTime | None = None
     documented_max_cost: int | None = None
     quota: QuotaReport | None = None
+    event_match: EventMatch | None = None
     records: tuple[RetrievedQuote, ...] = ()
     quarantined: tuple[QuarantinedQuote, ...] = ()
 
@@ -197,6 +218,29 @@ def format_american(price: object) -> str | None:
     return text
 
 
+def index_identities(
+    records: tuple[PlayerNameMapping, ...],
+) -> dict[str, PlayerNameMapping] | str:
+    index: dict[str, PlayerNameMapping] = {}
+    teams: dict[str, str] = {}
+    for record in records:
+        prior_team = teams.get(record.canonical_player_id)
+        if prior_team is not None and prior_team != record.canonical_team_id:
+            return "conflicting_player_identity"
+        teams[record.canonical_player_id] = record.canonical_team_id
+        for raw in (record.provider_name, *record.aliases):
+            key = normalize_person(raw)
+            if key == "":
+                return "invalid_player_map"
+            current = index.get(key)
+            if current is not None and current.canonical_player_id != record.canonical_player_id:
+                return "ambiguous_player_name"
+            if current is not None and current.canonical_team_id != record.canonical_team_id:
+                return "conflicting_player_identity"
+            index[key] = record
+    return index
+
+
 def index_names(names: dict[str, str], *, kind: str) -> dict[str, str] | str:
     index: dict[str, str] = {}
     pattern = PLAYER_ID if kind == "player" else re.compile(r"^\d{10}$")
@@ -269,38 +313,85 @@ def normalize_event_odds(
     retrieved_at: datetime,
     max_quote_age_seconds: int,
     bookmakers: tuple[str, ...] = (),
-) -> tuple[tuple[RetrievedQuote, ...], tuple[QuarantinedQuote, ...]]:
-    player_index = index_names(players, kind="player")
+    tip_tolerance_seconds: int = 0,
+    identities: tuple[PlayerNameMapping, ...] | None = None,
+) -> tuple[tuple[RetrievedQuote, ...], tuple[QuarantinedQuote, ...], EventMatch | None]:
+    identity_index: dict[str, PlayerNameMapping] | None = None
+    if identities is not None:
+        indexed = index_identities(identities)
+        if isinstance(indexed, str):
+            return (), (QuarantinedQuote(reason=indexed, event_id=event_id),), None
+        identity_index = indexed
+        player_index: dict[str, str] | str = {}
+    else:
+        player_index = index_names(players, kind="player")
     team_lookup = index_names(team_names, kind="team")
     if isinstance(player_index, str):
-        return (), (QuarantinedQuote(reason=player_index, event_id=event_id),)
+        return (), (QuarantinedQuote(reason=player_index, event_id=event_id),), None
     if isinstance(team_lookup, str):
-        return (), (QuarantinedQuote(reason=team_lookup, event_id=event_id),)
+        return (), (QuarantinedQuote(reason=team_lookup, event_id=event_id),), None
     if not isinstance(payload, dict):
-        return (), (QuarantinedQuote(reason="malformed_payload", event_id=event_id),)
+        return (), (QuarantinedQuote(reason="malformed_payload", event_id=event_id),), None
 
     home_name = payload.get("home_team")
     away_name = payload.get("away_team")
     home_id = _team_id(team_lookup, home_name)
     away_id = _team_id(team_lookup, away_name)
     if home_id is None or away_id is None:
-        return (), (QuarantinedQuote(reason="unknown_team", event_id=event_id, detail="schedule team name"),)
+        return (), (QuarantinedQuote(reason="unknown_team", event_id=event_id, detail="schedule team name"),), None
     if payload.get("id") != event_id or payload.get("sport_key") != SPORT:
-        return (), (QuarantinedQuote(reason="event_mismatch", event_id=event_id),)
+        return (), (QuarantinedQuote(reason="event_mismatch", event_id=event_id),), None
     commence = _parse_time(payload.get("commence_time"))
     if commence is None:
-        return (), (QuarantinedQuote(reason="malformed_timestamp", event_id=event_id, detail="commence_time"),)
+        return (), (QuarantinedQuote(reason="malformed_timestamp", event_id=event_id, detail="commence_time"),), None
 
-    matches = [
+    def in_window(game: object) -> bool:
+        tip_at = getattr(game, "tip_at")
+        return abs((tip_at - commence).total_seconds()) <= tip_tolerance_seconds
+
+    same_season = [
         game
         for game in directory.games.values()
-        if game.home_team_id == home_id and game.away_team_id == away_id and game.tip_at == commence
+        if game.home_team_id == home_id
+        and game.away_team_id == away_id
+        and game.record.season == directory.season
+        and in_window(game)
     ]
-    if len(matches) != 1:
-        reason = "ambiguous_event" if len(matches) > 1 else "event_mismatch"
-        return (), (QuarantinedQuote(reason=reason, event_id=event_id),)
-    if commence <= retrieved_at:
-        return (), (QuarantinedQuote(reason="post_tip", event_id=event_id),)
+    if len(same_season) > 1:
+        return (), (QuarantinedQuote(reason="ambiguous_event", event_id=event_id),), None
+    if len(same_season) == 0:
+        reversed_sides = [
+            game
+            for game in directory.games.values()
+            if game.home_team_id == away_id
+            and game.away_team_id == home_id
+            and game.record.season == directory.season
+            and in_window(game)
+        ]
+        if reversed_sides:
+            return (), (QuarantinedQuote(reason="reversed_home_away", event_id=event_id),), None
+        other_season = [
+            game
+            for game in directory.games.values()
+            if game.home_team_id == home_id
+            and game.away_team_id == away_id
+            and game.record.season != directory.season
+            and in_window(game)
+        ]
+        reason = "season_mismatch" if other_season else "event_mismatch"
+        return (), (QuarantinedQuote(reason=reason, event_id=event_id),), None
+    game = same_season[0]
+    event_match = EventMatch(
+        method=MATCH_METHOD,
+        season=directory.season,
+        schedule_tip_at=game.tip_at,
+        odds_commence_at=commence,
+        tip_delta_seconds=int(round((commence - game.tip_at).total_seconds())),
+        canonical_game_id=game.canonical_game_id,
+    )
+    earlier_tip = game.tip_at if game.tip_at <= commence else commence
+    if earlier_tip <= retrieved_at:
+        return (), (QuarantinedQuote(reason="post_tip", event_id=event_id),), event_match
 
     selected = bookmakers
     legs: list[_Leg] = []
@@ -308,7 +399,7 @@ def normalize_event_odds(
     present: set[str] = set()
     books = payload.get("bookmakers")
     if not isinstance(books, list):
-        return (), (QuarantinedQuote(reason="malformed_payload", event_id=event_id, detail="bookmakers"),)
+        return (), (QuarantinedQuote(reason="malformed_payload", event_id=event_id, detail="bookmakers"),), event_match
     for book_row in books:
         if not isinstance(book_row, dict):
             quarantined.append(QuarantinedQuote(reason="malformed_payload", event_id=event_id, detail="bookmaker"))
@@ -364,42 +455,114 @@ def normalize_event_odds(
 
     records: list[RetrievedQuote] = []
     seen_snapshots: set[str] = set()
-    game = matches[0]
     schedule_source = game.record.source_ids[0]
     for player_key, items in by_player.items():
         complete: list[tuple[_Leg, _Leg]] = []
         incomplete = 0
         for _key, slot in items:
             if len(slot["over"]) > 1 or len(slot["under"]) > 1:
-                quarantined.append(QuarantinedQuote(reason="duplicate_outcome", event_id=event_id, detail=player_key[2]))
+                quarantined.append(
+                    QuarantinedQuote(
+                        reason="duplicate_outcome", event_id=event_id, detail=player_key[2], market=player_key[1]
+                    )
+                )
                 continue
             if len(slot["over"]) == 1 and len(slot["under"]) == 1:
                 complete.append((slot["over"][0], slot["under"][0]))
             else:
                 incomplete += 1
         if incomplete and len(items) > 1:
-            quarantined.append(QuarantinedQuote(reason="mismatched_line", event_id=event_id, detail=player_key[2]))
+            quarantined.append(
+                QuarantinedQuote(
+                    reason="mismatched_line", event_id=event_id, detail=player_key[2], market=player_key[1]
+                )
+            )
         elif incomplete:
-            quarantined.append(QuarantinedQuote(reason="unpaired_side", event_id=event_id, detail=player_key[2]))
+            quarantined.append(
+                QuarantinedQuote(reason="unpaired_side", event_id=event_id, detail=player_key[2], market=player_key[1])
+            )
         for over, under in complete:
             if over.updated_at != under.updated_at:
                 quarantined.append(
-                    QuarantinedQuote(reason="incompatible_timestamps", event_id=event_id, detail=player_key[2])
+                    QuarantinedQuote(
+                        reason="incompatible_timestamps",
+                        event_id=event_id,
+                        detail=player_key[2],
+                        market=player_key[1],
+                    )
                 )
                 continue
             updated = over.updated_at
             if updated > retrieved_at:
-                quarantined.append(QuarantinedQuote(reason="future_dated", event_id=event_id, detail=player_key[2]))
-                continue
-            if (retrieved_at - updated).total_seconds() > max_quote_age_seconds:
-                quarantined.append(QuarantinedQuote(reason="stale", event_id=event_id, detail=player_key[2]))
-                continue
-            player_id = player_index.get(player_key[2])
-            if player_id is None:
                 quarantined.append(
-                    QuarantinedQuote(reason="unresolved_player_name", event_id=event_id, detail=over.player_name)
+                    QuarantinedQuote(reason="future_dated", event_id=event_id, detail=player_key[2], market=player_key[1])
                 )
                 continue
+            if (retrieved_at - updated).total_seconds() > max_quote_age_seconds:
+                quarantined.append(
+                    QuarantinedQuote(reason="stale", event_id=event_id, detail=player_key[2], market=player_key[1])
+                )
+                continue
+            identity_available_at = None
+            if identity_index is not None:
+                identity = identity_index.get(player_key[2])
+                if identity is None:
+                    quarantined.append(
+                        QuarantinedQuote(
+                            reason="unresolved_player_name",
+                            event_id=event_id,
+                            detail=over.player_name,
+                            market=player_key[1],
+                        )
+                    )
+                    continue
+                if identity.season != directory.season:
+                    quarantined.append(
+                        QuarantinedQuote(
+                            reason="season_mismatch",
+                            event_id=event_id,
+                            detail=over.player_name,
+                            market=player_key[1],
+                            identity_available_at=identity.available_at,
+                        )
+                    )
+                    continue
+                if identity.canonical_team_id not in {game.home_team_id, game.away_team_id}:
+                    quarantined.append(
+                        QuarantinedQuote(
+                            reason="wrong_team",
+                            event_id=event_id,
+                            detail=over.player_name,
+                            market=player_key[1],
+                            identity_available_at=identity.available_at,
+                        )
+                    )
+                    continue
+                if identity.available_at > retrieved_at:
+                    quarantined.append(
+                        QuarantinedQuote(
+                            reason="identity_not_yet_available",
+                            event_id=event_id,
+                            detail=over.player_name,
+                            market=player_key[1],
+                            identity_available_at=identity.available_at,
+                        )
+                    )
+                    continue
+                player_id = identity.canonical_player_id
+                identity_available_at = identity.available_at
+            else:
+                player_id = player_index.get(player_key[2])
+                if player_id is None:
+                    quarantined.append(
+                        QuarantinedQuote(
+                            reason="unresolved_player_name",
+                            event_id=event_id,
+                            detail=over.player_name,
+                            market=player_key[1],
+                        )
+                    )
+                    continue
             for leg in (over, under):
                 quote = _quote(
                     leg,
@@ -409,6 +572,8 @@ def normalize_event_odds(
                     schedule_source=schedule_source,
                     native_game_id=game.native_game_id,
                     retrieved_at=retrieved_at,
+                    event_match=event_match,
+                    identity_available_at=identity_available_at,
                 )
                 if isinstance(quote, str):
                     quarantined.append(QuarantinedQuote(reason=quote, event_id=event_id, detail=leg.player_name))
@@ -420,7 +585,7 @@ def normalize_event_odds(
                 records.append(quote)
 
     records.sort(key=lambda item: (item.record.book, item.record.market.value, item.record.raw_player_name, item.record.line, item.record.side.value))
-    return tuple(records), tuple(quarantined)
+    return tuple(records), tuple(quarantined), event_match
 
 
 def _leg_from_outcome(outcome: object, *, book: str, market_key: str, updated_at: datetime) -> _Leg | str:
@@ -461,6 +626,8 @@ def _quote(
     schedule_source: SourceId,
     native_game_id: str,
     retrieved_at: datetime,
+    event_match: EventMatch,
+    identity_available_at: datetime | None = None,
 ) -> RetrievedQuote | str:
     snapshot_id = _snapshot_id(event_id, leg.book, leg.market_key, leg.side, leg.line)
     if snapshot_id is None:
@@ -486,7 +653,11 @@ def _quote(
         )
     except ValidationError:
         return "malformed_payload"
-    return RetrievedQuote(record=record)
+    return RetrievedQuote(
+        record=record,
+        event_match=event_match,
+        identity_available_at=identity_available_at,
+    )
 
 
 def _live_transport(
@@ -559,6 +730,7 @@ class OddsApiMarketAdapter(ProviderAdapter):
         cache_dir: Path | str = Path("data/cache/odds-api"),
         max_quote_age_seconds: int = 900,
         max_request_credits: int = 3,
+        tip_tolerance_seconds: int = 900,
         transport: OddsTransport | None = None,
         clock: Callable[[], datetime] | None = None,
         sleeper: Callable[[float], None] | None = None,
@@ -575,6 +747,8 @@ class OddsApiMarketAdapter(ProviderAdapter):
             raise ValueError("max_quote_age_seconds must be within (0, 3600]")
         if not 1 <= max_request_credits <= 3:
             raise ValueError("max_request_credits must be from 1 through 3")
+        if not 0 <= tip_tolerance_seconds <= 900:
+            raise ValueError("tip_tolerance_seconds must be from 0 through 900")
         self.region = region
         self.bookmakers = bookmakers
         self.timeout_seconds = timeout_seconds
@@ -583,6 +757,7 @@ class OddsApiMarketAdapter(ProviderAdapter):
         self.cache_dir = Path(cache_dir)
         self.max_quote_age_seconds = max_quote_age_seconds
         self.max_request_credits = max_request_credits
+        self.tip_tolerance_seconds = tip_tolerance_seconds
         self._transport = transport or _live_transport
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._sleep = sleeper or time.sleep
@@ -600,6 +775,7 @@ class OddsApiMarketAdapter(ProviderAdapter):
             "cache_dir": settings.cache_dir,
             "max_quote_age_seconds": settings.max_quote_age_seconds,
             "max_request_credits": settings.max_request_credits,
+            "tip_tolerance_seconds": settings.tip_tolerance_seconds,
         }
         values.update(kwargs)
         return cls(**values)
@@ -729,7 +905,7 @@ class OddsApiMarketAdapter(ProviderAdapter):
             if retrieved_at is None or cached.get("event_id") != event_id:
                 return self._refused("malformed_payload", api_key, event_id=event_id)
             headers = _headers_from_quota(cached.get("quota"))
-        records, quarantined = normalize_event_odds(
+        records, quarantined, event_match = normalize_event_odds(
             payload,
             event_id=event_id,
             directory=directory,
@@ -738,12 +914,14 @@ class OddsApiMarketAdapter(ProviderAdapter):
             retrieved_at=retrieved_at,
             max_quote_age_seconds=self.max_quote_age_seconds,
             bookmakers=self.bookmakers,
+            tip_tolerance_seconds=self.tip_tolerance_seconds,
         )
         return OddsFetch(
             state=AnalysisState.AVAILABLE,
             retrieved_at=retrieved_at,
             documented_max_cost=max_cost,
             quota=parse_quota(headers),
+            event_match=event_match,
             records=records,
             quarantined=quarantined,
         )

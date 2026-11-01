@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "provider_id": "odds-api",
+  "season": "2026-27",
+  "source": "nba_api 1.12.0 CommonTeamRoster for season 2026-27, team ids 1610612745 and 1610612760, retrieved 2026-11-01T00:39:38.453334Z. Each source row SEASON field was 2026. Player ids were cross-checked against nba_api.stats.static.players in that same installed package. Static players has no team id, so team membership comes from the roster response. Two Odds API spellings differ from the roster spelling and are stored as explicit aliases. Jalen Williams, player id 1631114 on Oklahoma City, is a different player from Jaylin Williams and is not an alias.",
+  "retrieved_at": "2026-11-01T00:39:38.453334Z",
+  "players": [
+    {
+      "provider_name": "Aday Mara",
+      "source_name": "Aday Mara",
+      "aliases": [],
+      "canonical_player_id": "player:1643530",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1643530"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1643530"
+        }
+      ]
+    },
+    {
+      "provider_name": "Ajay Mitchell",
+      "source_name": "Ajay Mitchell",
+      "aliases": [],
+      "canonical_player_id": "player:1642349",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1642349"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1642349"
+        }
+      ]
+    },
+    {
+      "provider_name": "Alperen Sengun",
+      "source_name": "Alperen Sengun",
+      "aliases": [],
+      "canonical_player_id": "player:1630578",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:1630578"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1630578"
+        }
+      ]
+    },
+    {
+      "provider_name": "Amen Thompson",
+      "source_name": "Amen Thompson",
+      "aliases": [],
+      "canonical_player_id": "player:1641708",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:1641708"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1641708"
+        }
+      ]
+    },
+    {
+      "provider_name": "Bogdan Bogdanovic",
+      "source_name": "Bogdan Bogdanović",
+      "aliases": [
+        "Bogdan Bogdanović"
+      ],
+      "canonical_player_id": "player:203992",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:203992"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:203992"
+        }
+      ]
+    },
+    {
+      "provider_name": "Isaiah Hartenstein",
+      "source_name": "Isaiah Hartenstein",
+      "aliases": [],
+      "canonical_player_id": "player:1628392",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1628392"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1628392"
+        }
+      ]
+    },
+    {
+      "provider_name": "Jabari Smith Jr",
+      "source_name": "Jabari Smith Jr.",
+      "aliases": [
+        "Jabari Smith Jr."
+      ],
+      "canonical_player_id": "player:1631095",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:1631095"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1631095"
+        }
+      ]
+    },
+    {
+      "provider_name": "Jared McCain",
+      "source_name": "Jared McCain",
+      "aliases": [],
+      "canonical_player_id": "player:1642272",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1642272"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1642272"
+        }
+      ]
+    },
+    {
+      "provider_name": "Jaylin Williams",
+      "source_name": "Jaylin Williams",
+      "aliases": [],
+      "canonical_player_id": "player:1631119",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1631119"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1631119"
+        }
+      ]
+    },
+    {
+      "provider_name": "Kenrich Williams",
+      "source_name": "Kenrich Williams",
+      "aliases": [],
+      "canonical_player_id": "player:1629026",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1629026"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1629026"
+        }
+      ]
+    },
+    {
+      "provider_name": "Kevin Durant",
+      "source_name": "Kevin Durant",
+      "aliases": [],
+      "canonical_player_id": "player:201142",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:201142"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:201142"
+        }
+      ]
+    },
+    {
+      "provider_name": "Marcus Smart",
+      "source_name": "Marcus Smart",
+      "aliases": [],
+      "canonical_player_id": "player:203935",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:203935"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:203935"
+        }
+      ]
+    },
+    {
+      "provider_name": "Shai Gilgeous-Alexander",
+      "source_name": "Shai Gilgeous-Alexander",
+      "aliases": [],
+      "canonical_player_id": "player:1628983",
+      "canonical_team_id": "team:1610612760",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612760:1628983"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1628983"
+        }
+      ]
+    },
+    {
+      "provider_name": "Tari Eason",
+      "source_name": "Tari Eason",
+      "aliases": [],
+      "canonical_player_id": "player:1631106",
+      "canonical_team_id": "team:1610612745",
+      "season": "2026-27",
+      "available_at": "2026-11-01T00:39:38.453334Z",
+      "source_ids": [
+        {
+          "provider_id": "nba-api",
+          "native_id": "commonteamroster:2026-27:1610612745:1631106"
+        },
+        {
+          "provider_id": "nba-api",
+          "native_id": "static.players:1.12.0:1631106"
+        }
+      ]
+    }
+  ]
+}
