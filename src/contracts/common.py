@@ -80,6 +80,7 @@ COMPARISON_ID = re.compile(r"^comparison:[a-z0-9][a-z0-9-]{0,80}$")
 DECISION_ID = re.compile(r"^decision:[a-z0-9][a-z0-9-]{0,80}$")
 SETTLEMENT_ID = re.compile(r"^settlement:[a-z0-9][a-z0-9-]{0,80}$")
 REPORT_ID = re.compile(r"^report:[a-z0-9][a-z0-9-]{0,80}$")
+PRICE_ID = re.compile(r"^price:[a-z0-9][a-z0-9-]{0,80}$")
 AMERICAN_ODDS = re.compile(r"^[+-](?:100|[1-9]\d{2,5})$")
 
 
@@ -102,6 +103,7 @@ ComparisonId = Annotated[str, AfterValidator(_id_validator(COMPARISON_ID, "compa
 DecisionId = Annotated[str, AfterValidator(_id_validator(DECISION_ID, "decision"))]
 SettlementId = Annotated[str, AfterValidator(_id_validator(SETTLEMENT_ID, "settlement"))]
 ReportId = Annotated[str, AfterValidator(_id_validator(REPORT_ID, "report"))]
+PriceId = Annotated[str, AfterValidator(_id_validator(PRICE_ID, "price"))]
 
 
 class SourceId(StrictModel):

@@ -213,6 +213,64 @@ class NbaApiScheduleSettings(StrictModel):
     team_map: str = Field(min_length=1)
 
 
+class FeatureWindowSettings(StrictModel):
+    """Lookback for historical box-score features. The shipped numbers are unvalidated."""
+
+    version: Literal[1]
+    max_games: int = Field(ge=1, le=82)
+    lookback_days: int = Field(ge=1, le=400)
+    min_games: int = Field(ge=1, le=82)
+    defaults_validated: Literal[False]
+
+
+class BaselineProjectionSettings(StrictModel):
+    """Whether the baseline mean uses shrinkage. The shipped file does not invent a prior."""
+
+    version: Literal[1]
+    shrinkage_enabled: bool
+    coefficients_validated: Literal[False]
+
+
+class IntegerResidualSettings(StrictModel):
+    """Support and smoothing for the experimental histogram. The shipped numbers are unvalidated."""
+
+    version: Literal[1]
+    support_max: int = Field(ge=0, le=200)
+    smoothing: float = Field(ge=0, allow_inf_nan=False)
+    min_training_rows: int = Field(ge=1, le=500)
+    minutes_mode: Literal["fixed", "pooled"]
+    minutes_tolerance: float = Field(ge=0, allow_inf_nan=False)
+    defaults_validated: Literal[False]
+
+
+class ResearchDecisionSettings(StrictModel):
+    """Research-only minima. The shipped file sets none of them.
+
+    A synthetic test may supply numbers only with configuration_label
+    `synthetic_test`. Those numbers are not a claim of a profitable cutoff.
+    """
+
+    version: Literal[1]
+    minimum_ev: float | None = Field(default=None, allow_inf_nan=False)
+    minimum_probability_edge: float | None = Field(default=None, allow_inf_nan=False)
+    edge_benchmark: Literal["raw_implied", "no_vig"] | None = None
+    configuration_label: Literal["unset", "synthetic_test"]
+    thresholds_validated: Literal[False]
+    recommendations_enabled: Literal[False]
+    hypothesis_adjustments_enabled: Literal[False]
+
+    @model_validator(mode="after")
+    def unset_policy_has_no_threshold(self) -> "ResearchDecisionSettings":
+        configured = (
+            self.minimum_ev is not None
+            or self.minimum_probability_edge is not None
+            or self.edge_benchmark is not None
+        )
+        if self.configuration_label == "unset" and configured:
+            raise ValueError("an unset research policy does not contain a threshold or a benchmark")
+        return self
+
+
 class NbaApiLogSettings(StrictModel):
     """Operational limits for the playergamelog adapter. This file does not enable a fetch."""
 
@@ -390,6 +448,70 @@ def load_odds_api_teams(path: Path) -> tuple[ConfigStatus, OddsApiTeamNameFile |
     except (OSError, json.JSONDecodeError) as exc:
         return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
     return validate_odds_api_teams(payload)
+
+
+def validate_baseline_projection(payload: object) -> tuple[ConfigStatus, BaselineProjectionSettings | None]:
+    try:
+        parsed = BaselineProjectionSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def validate_integer_residual(payload: object) -> tuple[ConfigStatus, IntegerResidualSettings | None]:
+    try:
+        parsed = IntegerResidualSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def validate_research_decision(payload: object) -> tuple[ConfigStatus, ResearchDecisionSettings | None]:
+    try:
+        parsed = ResearchDecisionSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_research_decision(path: Path) -> tuple[ConfigStatus, ResearchDecisionSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_research_decision(payload)
+
+
+def load_integer_residual(path: Path) -> tuple[ConfigStatus, IntegerResidualSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_integer_residual(payload)
+
+
+def load_baseline_projection(path: Path) -> tuple[ConfigStatus, BaselineProjectionSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_baseline_projection(payload)
+
+
+def validate_feature_windows(payload: object) -> tuple[ConfigStatus, FeatureWindowSettings | None]:
+    try:
+        parsed = FeatureWindowSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_feature_windows(path: Path) -> tuple[ConfigStatus, FeatureWindowSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_feature_windows(payload)
 
 
 def validate_nba_api_log_settings(payload: object) -> tuple[ConfigStatus, NbaApiLogSettings | None]:

@@ -1,0 +1,5 @@
+version: 1
+max_games: 10
+lookback_days: 30
+min_games: 5
+defaults_validated: false

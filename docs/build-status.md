@@ -1,6 +1,6 @@
 # Build status
 
-The project is in development. This note records what is complete, what is still unfinished, and the next step. Custom rules were not changed. No projection math, recommendations, numeric adjustments, or AWS resources were added.
+The project is in development. This note records what is complete, what is still unfinished, and the next step. Custom rules were not changed. The baseline mean does not emit a distribution, a price, a recommendation, a numeric adjustment, or an AWS resource.
 
 ## Complete
 
@@ -15,7 +15,7 @@ The project is in development. This note records what is complete, what is still
 
 ## Test results
 
-`python -m pytest` — 113 passed in 1.41s (Python 3.12.10). No warnings. This run includes the split stat-distribution and comparison contracts and did not call the network.
+`python -m pytest` — 155 passed in 10.16s (Python 3.12.10). No warnings. This run includes the synthetic offline demo and did not call the network.
 
 Automated tests use synthetic fixtures and do not call the network. No API key is required. The matching tests cover 600-second and 660-second gaps, the 901-second boundary, two candidates, reversed home and away, a different season, and post-tip rejection at the earlier tip.
 
@@ -57,7 +57,7 @@ The 326 paired quotes resolved to a reviewed player and team, then stayed quaran
 - The 900-second tip window. It covered this 11-game list, where the odds commence time was 600 or 660 seconds after the schedule tip. It is not proof that every later slate uses the same offset.
 - Historical availability. Current player-log and schedule extracts have no as-of parameter.
 - Team coverage. Abbreviation and odds name maps are the current 30 teams only. Neutral-site games stay quarantined. The accepted schedule directory is not complete league coverage.
-- Injury reports, projection math, recommendations, and AWS deployment. The pipeline skeleton stores those stage results and does not calculate them. The roster adapter reads one team at a time. It does not replace the reviewed odds name map, and it does not make the cached Thunder at Rockets quotes actionable.
+- Injury reports, live recommendations, and AWS deployment. Historical box scores, a baseline mean, an experimental integer histogram, over/under probabilities, implied probability, no-vig, probability edge, EV, and a research-only decision are calculated. The shipped decision thresholds are unset. Stakes and live recommendations are not. The roster adapter reads one team at a time. It does not replace the reviewed odds name map, and it does not make the cached Thunder at Rockets quotes actionable.
 - Calibrated confidence and angle coefficients. Flagged defender-return research stays off.
 - `available` means the input gates passed. It is not a bet recommendation.
 
@@ -65,9 +65,33 @@ The 326 paired quotes resolved to a reviewed player and team, then stayed quaran
 
 Implemented in this step: typed contracts for a feature snapshot, a projection distribution, a market comparison, a decision, and a settlement record. `pipeline.run_pipeline` connects validation, features, projection, rule evaluation, market comparison, decision, and a structured report. Validation reuses `rules.engine.evaluate`. `available` remains the rules state. The report recommendation is `none`, and `live_recommendation` cannot be true.
 
-Unfinished inside that path: feature math, probability, implied price, no-vig price, edge, EV, candidate thresholds, bankroll sizing, and settlement grading. Default stages return `not_implemented` or `unavailable`. Injected test stages may store numbers only with origin `synthetic` and calibration `uncalibrated`. The pipeline does not emit a settlement. No adapter was changed and no provider was called.
+Historical box scores are now calculated on that path when the rules state is `available`. The feature version is `2026-11-01.historical-box-score`. Included games are completed games before the target whose evidence was available by the cutoff, ordered by tip time. The sample average is `total / n`. The per-minute rate is `total stat / total minutes`. Variability is the sample standard deviation with divisor `n - 1`, and it is null for fewer than two games. An empty sample stores null, not zero. The shipped window is 10 games, 30 days, and a minimum of 5. Those defaults are unvalidated. Usage, shot volume, pace, defense, and lineup stay null. Historical minutes are not expected future minutes.
 
-Contract choices: new id prefixes are `feature:`, `comparison:`, `decision:`, `settlement:`, and `report:`. A projection distribution is the player's stat mass for one market and has no line or side. Win, loss, and push probabilities live on the comparison together with the player, event, stat, line, side, book, and odds snapshot. A supplied triple must sum to 1. That check does not calculate them. Implied probability, the no-vig price, the decision threshold, the stake, and bankroll sizing are fixed null for now. A settlement may name `win`, `loss`, `push`, or `void`. Push and void are different. `unit_profit` is fixed null and `graded` stays false. The stage callables on `PipelineStages` are the extension points. Their defaults do not calculate.
+A baseline mean is calculated when that feature sample is sufficient and explicit expected minutes are valid. `mean = expected_minutes * selected_rate`. The unshrunk rate is `historical_stat_total / historical_minutes`. With shrinkage enabled, the rate is `(historical_stat_total + prior_rate * prior_minutes) / (historical_minutes + prior_minutes)`. The shipped file sets shrinkage off and does not contain a prior. Expected minutes are not copied from historical average minutes. A refused projection names `missingness` and stores no mean. `minutes_uncertainty` is recorded only when supplied. `outcomes` stays empty. The baseline's `model_version` is `2026-11-01.baseline-minutes-rate`. Its calibration status stays `not_applicable`, and its coefficients stay unvalidated. The rules catalog `model_version` stays `none`.
+
+`evaluation.score.evaluate_baseline` scores supplied pregame means against later stats. Points, assists, and rebounds are separate. Eligible error is prediction minus actual. The report gives sample count, MAE, RMSE, and signed bias, and it lists excluded and unavailable rows with reasons. It does not invent a projection.
+
+The experimental distribution `2026-11-01.integer-residual-histogram` places training residuals around the target baseline mean on nonnegative integers, with one explicit tail bin above the cap. `location = baseline_mean + (observed_stat - predicted_mean)`. Negative locations are moved to 0. Non-integer locations split between the two surrounding integers. The distribution mean and its gap versus the baseline are reported when the tail is empty, and left null when the tail has mass. Exact mean preservation is not guaranteed. Fixed minutes with tolerance zero are an exact sample condition, recorded as `exact_minutes_sample`. They are not a distribution over minutes. Positive smoothing adds its pseudocount to every integer and to the tail, which creates unresolved tail mass, leaves the numeric mean null, and leaves CRPS and above-cap log scores unavailable. The candidate is uncalibrated.
+
+When that histogram is supplied, the comparison stage calculates over/under win, loss, and push probabilities at the quote's line. Over wins when the stat is greater than the line, loses when it is less, and pushes when it is equal. Under reverses win and loss. The line is not rounded, so a half-point line has push probability zero. Tail mass is used only when every integer above the cap is on the same side of the line (`line < support_max + 1`). A line that splits the tail is `tail_split_by_line`, and the resolved mass is not renormalized. A zero probability on an identified outcome is kept in aggregate log loss as positive infinity. The comparison stays experimental and uncalibrated and does not itself store American odds, implied probability, or a no-vig price.
+
+`src/edge` then prices that comparison against the quote. Positive American odds `A` use `decimal = 1 + A / 100`. Negative odds use `decimal = 1 + 100 / |A|`. Raw implied probability is `1 / decimal` and is labeled as containing vig. `EV = p_win * (decimal - 1) - p_loss`. A push contributes nothing. If `p_win + p_loss` is zero, EV is zero and probability edge is unavailable. Otherwise probability edge is `p_win / (p_win + p_loss)` minus the raw implied probability, or minus the proportional no-vig probability when the opposite quote matches the book, event, player, stat, line, and `captured_at`. The record names the benchmark. No-vig is not a true probability. Distribution mean minus the line is a separate field and is null when the mean is unresolved. The price version is `2026-11-01.american-price-edge`. `MarketComparison.implied_probability` stays null. The legacy decision stays `pass` / `not_implemented` and does not copy the edge or the EV.
+
+`src/decision` applies `2026-11-01.research-decision`. The shipped file leaves both minima and the edge benchmark empty. A labeled synthetic test may supply minima. The result is `research_candidate`, `no_bet`, or `unavailable`, with every gate. Positive EV and positive probability edge are required in addition to those minima. A required no-vig benchmark is not replaced by the raw edge. An all-push price is `no_bet`. Missing, stale, or unresolved inputs are `unavailable`. Data quality, the price id that holds hit probability, and calibration status are separate. An uncalibrated price may be a research candidate only. A synthetic comparison stays `origin: synthetic`. `live_recommendation` stays false, and stake and bankroll stay null.
+
+Still unfinished inside that path: a live candidate, stake sizing, bankroll sizing, and settlement grading. Without a supplied histogram, comparison and the legacy decision stay `not_implemented` and no price is attached. The research result is then `unavailable`. Injected test stages may store numbers only with origin `synthetic` and calibration `uncalibrated`. The pipeline does not emit a settlement. No adapter was changed and no provider was called.
+
+## Offline demo
+
+`python demo.py` runs the implemented stages on labeled synthetic data and does not read `.env` or call a provider. It fits the integer histogram from synthetic training rows whose predicted mean is the calculated baseline, then prices the synthetic over 24.5 at -110. The summary names the research decision as the final research outcome. The legacy `pass` or `abstain` record is an input-eligibility note, not a second decision.
+
+The three results are `research_candidate` under labeled synthetic-test minima of 0.01, `no_bet` when the labeled EV minimum is 1.0, and `unavailable` when minutes evidence is removed. Those minima are not an operational cutoff. The JSON after `--- demo-json ---` includes the three rule audits, source references, versions, assumptions, calibration status, and every gate.
+
+Synthetic performance is not predictive evidence. The demo does not measure accuracy or profit on real games.
+
+Remaining gaps: real-data evaluation, minutes uncertainty, injury and team context, settlement grading, bankroll sizing, and AWS. The demo does not add a provider, a bankroll, or a new model.
+
+Contract choices: new id prefixes are `feature:`, `comparison:`, `decision:`, `settlement:`, `report:`, and `price:`. A projection distribution is the player's stat mass for one market and has no line or side. Win, loss, and push probabilities live on the comparison. The price record binds the same player, event, stat, line, side, book, and odds snapshot. The decision threshold, the stake, and bankroll sizing stay null. A settlement may name `win`, `loss`, `push`, or `void`. Push and void are different. `unit_profit` is fixed null and `graded` stays false. The stage callables on `PipelineStages` are the extension points. The feature, baseline, residual side probabilities, and residual price defaults calculate. The decision default does not.
 
 ## Framework blueprint
 
@@ -78,11 +102,11 @@ The stage map and the contracts are documented from the code in this repository.
 | `docs/architecture.md` | Stage inputs, outputs, failures, and dependencies |
 | `docs/data-contracts.md` | Implemented fields, provenance, and missing fields |
 | `docs/decision-policy.md` | Gates, the three custom policies, and the specified edge and EV formulas |
-| `docs/evaluation-plan.md` | Settlement and calibration rules, without a scored sample |
+| `docs/evaluation-plan.md` | Baseline mean scores, settlement rules, and the distribution specification |
 | `docs/build-roadmap.md` | Phases and acceptance criteria |
 
 No model accuracy, profitability, or deployment is claimed.
 
 ## Next step
 
-Stop before projection math, a new provider, or deployment. The skeleton can store a synthetic uncalibrated distribution, and it does not calculate one. Candidate thresholds and bankroll sizing stay unresolved. Leave the cached Thunder at Rockets quotes non-actionable.
+Stop before API work. The offline demo is the verification checkpoint for the implemented stages. The research decision is uncalibrated and is not a recommendation. Synthetic performance is not predictive evidence. The shipped thresholds stay unset. Real-data evaluation, minutes uncertainty, injury and team context, settlement grading, bankroll sizing, and AWS remain open. Leave the cached Thunder at Rockets quotes non-actionable.

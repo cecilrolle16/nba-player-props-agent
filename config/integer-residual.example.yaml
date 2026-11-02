@@ -1,0 +1,7 @@
+version: 1
+support_max: 60
+smoothing: 0
+min_training_rows: 8
+minutes_mode: fixed
+minutes_tolerance: 0
+defaults_validated: false

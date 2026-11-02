@@ -13,7 +13,7 @@ from contracts.schedule import ScheduleGame
 from contracts.settlement import SettlementOutcome, SettlementRecord
 from contracts.stages import CalibrationStatus, StageState, ValueOrigin
 from pipeline.run import run_pipeline
-from pipeline.stages import PipelineStages, default_comparison, default_features, default_projection
+from pipeline.stages import PipelineStages, default_comparison, default_projection, reference_features
 from support import catalog, load_json, load_subject
 
 
@@ -33,7 +33,7 @@ def _bundle(subject_name: str = "valid_points.json", **subject_updates: object) 
 
 def _synthetic_stages() -> PipelineStages:
     def features(context):
-        current = default_features(context)
+        current = reference_features(context)
         return current.model_copy(
             update={
                 "feature_id": "feature:synthetic-points",
@@ -174,10 +174,17 @@ def test_unfinished_stages_cannot_become_a_recommendation():
     report = run_pipeline(_bundle(), catalog())
     assert report.inputs_eligible is True
     assert report.validation.state is AnalysisState.AVAILABLE
-    assert report.features.stage_state is StageState.NOT_IMPLEMENTED
-    assert report.projection.stage_state is StageState.NOT_IMPLEMENTED
+    assert report.features.stage_state is StageState.CALCULATED
+    assert report.features.origin is ValueOrigin.OBSERVED
+    assert report.features.sample_size == 0
+    assert report.features.average_points is None
+    assert report.features.insufficient_history is True
+    assert report.features.excluded_games[0].reason == "target_game"
+    assert report.projection.stage_state is StageState.UNAVAILABLE
+    assert report.projection.origin is ValueOrigin.OBSERVED
     assert report.projection.outcomes == ()
     assert report.projection.mean is None
+    assert report.projection.missingness == "insufficient_history"
     assert report.comparison.p_win is None
     assert report.comparison.stage_state is StageState.NOT_IMPLEMENTED
     assert report.decision.result == "pass"

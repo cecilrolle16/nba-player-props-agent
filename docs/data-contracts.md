@@ -124,6 +124,20 @@ Implemented.
 
 `AnalysisResult` copies the decision state, reason, ids, versions, `available_at` equal to `as_of`, essential gaps, disclosures, refused adjustments, future-context notes, and the `RuleAudit`. `AngleAudit.adjustment_amount` is always null. `validation_status` is `disabled` or `unvalidated`. `AdjustmentDecision.applied` is always false and `delta` is always null.
 
+### Historical features — `contracts/features.py`
+
+Implemented for completed box scores. `feature_version` is `2026-11-01.historical-box-score`.
+
+An included game is final, is not the target game, tipped before the target and at or before the cutoff, and had schedule and log evidence available at or before the cutoff. It has positive minutes and all three counting stats. The lookback keeps the most recent `max_games` inside `lookback_days` before the target tip. Shipped defaults are 10 games, 30 days, and a minimum of 5. `defaults_validated` is false.
+
+`average_stat = total_stat / sample_size`. `stat_per_minute = total_stat / total_minutes`. Variability is `sqrt(sum((x_i - average_stat)^2) / (n - 1))` when `n >= 2`, and null otherwise. An empty sample stores null totals, not zeros. A game missing any counting stat is excluded from all three averages. DNP and zero minutes are excluded reasons, not zeros. `average_minutes` is historical playing time. Expected future minutes stay on `MinutesEvidence`.
+
+### Baseline mean — `projection/baseline.py`
+
+Implemented. `model_version` and `projection_version` are `2026-11-01.baseline-minutes-rate`. Calibration stays `not_applicable`. The rules catalog `model_version` stays `none`.
+
+Unshrunk rate = `historical_stat_total / historical_minutes`. Shrunk rate = `(historical_stat_total + prior_rate * prior_minutes) / (historical_minutes + prior_minutes)`. `mean = expected_minutes * selected_rate`. The shipped configuration disables shrinkage and contains no prior. A prior must name the same player, event, and stat and be available by the cutoff. Expected minutes come from explicit evidence, not from `average_minutes`. Missing or invalid minutes, insufficient history, a mismatched identity, or evidence after the cutoff stores `missingness` and no mean. `minutes_uncertainty` is recorded only when supplied. `outcomes` stays empty. Coefficients are unvalidated. Hypothesis adjustments stay disabled.
+
 ## Odds quarantine reasons already produced
 
 These are adapter reasons, not catalog rules. The catalog still says `unresolved_player_id` when a subject reaches the engine without a canonical player id.
@@ -138,12 +152,12 @@ Do not treat this list as implemented.
 
 | Gap | Why it is missing |
 | --- | --- |
-| Feature math | `FeatureSnapshot` stores snapshot ids and clocks. It does not store computed feature values |
-| Hit probability calculator | `ProjectionDistribution` is the stat distribution and has no line or side. `MarketComparison` holds `p_win`, `p_loss`, and `p_push` for one line and side. Nothing calculates them |
+| Usage, shot volume, pace, defense, and lineup features | The historical builder leaves them null. Their inputs are not on the accepted log |
+| Hit probability beyond the integer histogram | `ProjectionDistribution` has no line or side. `projection.side_probability` fills `p_win`, `p_loss`, and `p_push` from `2026-11-01.integer-residual-histogram` only. Other distributions are not classified |
 | Data-confidence score | Gates are categorical. There is no numeric confidence |
 | Calibration record | A stage can be labeled `uncalibrated`. No bucket or observed frequency is stored |
-| Price selection | `MarketComparison` can name a synthetic line and side. Implied probability and no-vig probability are fixed null |
-| Decision threshold | `Decision` separates `inputs_eligible` from a recommendation. Threshold, stake, and bankroll sizing are fixed null. `live_recommendation` cannot be true |
+| Live candidate and stake | A research decision may be `research_candidate` under a labeled test policy. It does not copy edge or EV, and it cannot set a stake or `live_recommendation`. The shipped minima are empty |
+| Legacy `implied_probability` | `MarketComparison.implied_probability` stays null. The calculated value is `PriceComparison.raw_implied_probability` |
 | Settlement grading | `SettlementRecord` can name win, loss, push, or void. Push is not void. `unit_profit` is fixed null, `graded` is false, and the pipeline does not emit one |
 | Closing line | No closing snapshot distinct from the bet-time snapshot |
 | Bankroll | Unresolved module. No stake, Kelly fraction, or account balance |

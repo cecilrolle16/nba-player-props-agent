@@ -42,9 +42,9 @@ Acceptance: contracts round-trip in tests, extra fields are rejected, and `evalu
 
 ## Phase 4 — Features and stored projections
 
-**Status:** planned.
+**Status:** historical box scores and an unshrunk-or-explicitly-shrunk baseline mean are implemented. Outcome distributions and hit probability are not.
 
-Build feature rows from accepted logs and schedule context using only facts at or before `as_of`. A projection calculator may then write `Projection` rows under a new `model_version`. Until that version exists, `model_version` stays `none`. Hit probability is a separate output from `mean`. Angles still apply no magnitude.
+`features/historical.py` builds one feature snapshot from accepted logs and schedule tips using only games before the target whose evidence was available at or before `as_of`. `projection/baseline.py` multiplies explicit expected minutes by the selected per-minute rate. The baseline `model_version` is `2026-11-01.baseline-minutes-rate`. The rules catalog `model_version` stays `none`. Hit probability is a separate output from `mean`. Angles still apply no magnitude.
 
 Acceptance: a feature cannot see the same game's final stat. A current projection cannot count as a historical miss. No accuracy claim is added to the docs.
 

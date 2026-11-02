@@ -1,6 +1,6 @@
 # Decision policy
 
-The implemented policy decides whether inputs are usable and how the three custom angles are recorded. It does not choose a side, a price, or a stake. Edge, EV, and the candidate decision are specified so they can be implemented later without changing the gates.
+The implemented policy decides whether inputs are usable and how the three custom angles are recorded. It does not choose a stake or a recommendation. A calculated price edge and expected value do not cross a threshold and do not become a candidate.
 
 ## Implemented gates
 
@@ -51,38 +51,41 @@ A miss counts only when it is marked missed, it is not today's projection, and t
 
 ## Three different numbers
 
-These are specified so later code does not collapse them. None of the numeric forms is implemented. The gates are the only confidence mechanism in the code, and they are categorical.
+These are specified so later code does not collapse them. Data confidence stays a categorical gate. Conditional hit probability, probability edge, and EV are calculated from an uncalibrated model. Calibration against later outcomes is not implemented.
 
 | Name | Question it answers | Implemented form |
 | --- | --- | --- |
 | Data confidence | Are the identity, timestamps, and required facts good enough to compute anything? | `available`, `unavailable`, or `skip` |
-| Hit probability | What is the model's probability that the chosen side wins, excluding pushes? | Not implemented. `Projection.mean` is not this number |
+| Hit probability | What is the model's probability that the chosen side wins, excluding pushes? | `p_win / (p_win + p_loss)` when that denominator is positive. It is unavailable when every outcome is a push |
 | Calibration | Do stated hit probabilities match later observed frequencies? | Not implemented. See `docs/evaluation-plan.md` |
 
 A streak, a qualified angle, or a fresh injury report does not change hit probability while magnitudes stay null.
 
 ## Edge and EV
 
-Planned. Not implemented. The formulas below are the standard for a later calculator. They are not a measured edge and they are not a promise of profit.
+Implemented on `PriceComparison` by `src/edge`. Version `2026-11-01.american-price-edge`. The record is experimental and uncalibrated. It is not a measured edge and it is not a promise of profit. `MarketComparison.implied_probability` and `no_vig_probability` stay null. The decision does not copy the price edge or the EV, so a pass stays a pass.
 
-American odds `A` convert to decimal profit per 1 unit stake, `profit`:
+American odds `A` convert as:
 
-- If `A >= 100`, `profit = A / 100` and implied probability `q = 100 / (A + 100)`.
-- If `A <= -100`, `profit = 100 / |A|` and `q = |A| / (|A| + 100)`.
+- If `A` is positive, `decimal = 1 + A / 100`.
+- If `A` is negative, `decimal = 1 + 100 / |A|`.
+- Raw implied probability is `1 / decimal`. It contains vig.
 
-Odds between -99 and 99 are already rejected by the market contract.
+Odds between -99 and 99 are already rejected by the market contract. Profit per 1 unit stake is `decimal - 1`.
 
-For one book, one line, and both sides present with the same `captured_at`, the overround is `q_over + q_under - 1`. The planned no-vig probability for a side is that side's implied probability divided by the sum of the two implied probabilities. This multiplicative method is the one later code should use. If either side is missing, overround and no-vig probability are absent. The missing side is not invented.
+Expected value per 1 unit stake is:
 
-The stat distribution does not contain `p_win`. Those three probabilities, when a later calculator fills them, are stored on the comparison for one player, event, stat, line, side, book, and odds snapshot. Edge for that side is `p_win - q_reference`. `q_reference` is the no-vig probability when the pair exists, and the raw implied probability when a pair does not. The result must say which reference it used. Edge is not computed from the distribution mean by subtracting the line. Implied probability and the no-vig price are fixed null until that restriction is lifted.
+`EV = p_win * (decimal - 1) - p_loss`
 
-Expected value per 1 unit stake, with `p_win + p_loss + p_push = 1`:
+A push returns the stake and adds nothing, so it has no term. If `p_win + p_loss` is zero, EV is zero and both the conditional win probability and the probability edge are unavailable with reason `all_push`.
 
-`EV = p_win * profit - p_loss * 1`
+Conditional win probability is `p_win / (p_win + p_loss)`. Probability edge is that number minus the benchmark. The benchmark is the proportional no-vig probability when a valid opposite quote matches, and the raw implied probability otherwise. The record names which one it used. This is not the distribution mean minus the line. Mean minus the line is stored separately and is null when the distribution mean is unresolved.
 
-A push returns the stake and adds nothing. `p_win` is the hit probability of the chosen side. `p_loss` is the probability the other side wins. For a half-point line, `p_push` is 0. For an integer line, `p_push` is the probability the stat equals the line. A model that emits only `mean` cannot supply these three probabilities.
+Proportional no-vig probability is this side's raw implied probability divided by the sum of the two sides' raw implied probabilities. It is calculated only when the opposite quote is the other side at the same book, event, player, stat, and line, with the same `captured_at`, and both clocks are at or before the cutoff. The record stores the method `proportional` and both snapshot ids. A missing or mismatched opposite quote does not block single-quote EV. A no-vig price is not a true probability.
 
-EV is comparable across books only at the same line. A better price changes `profit` and the implied probability. It does not change the model's `p_win` unless the line itself changes.
+The quote must name the same player, event, stat, line, side, and odds snapshot as the probability comparison. A book or American price stored on the comparison must match the quote. A clock after the cutoff makes the price unavailable and stores no numbers.
+
+EV is comparable across books only at the same line. A better price changes `decimal` and the implied probability. It does not change `p_win` unless the line itself changes.
 
 ## Win, loss, push, and void
 
@@ -97,16 +100,23 @@ The stat is points, assists, or rebounds from `PlayerGameLog`, matching the mark
 
 ## Decision boundary
 
-Planned output, one per player, game, market, and line:
+Implemented as a research policy, version `2026-11-01.research-decision`. It is not a live recommendation. `live_recommendation` stays false. Stake and bankroll stay null. The legacy pipeline decision remains `pass` or `abstain` and does not copy edge or EV.
 
-| Output | When |
+`MarketComparison.implied_probability` is a legacy field and stays null. The calculated raw implied probability, the optional no-vig probability, the probability edge, and the EV live only on `PriceComparison`. The research decision stores that price id. It does not store a second copy of those numbers.
+
+The shipped file `config/research-decision.example.yaml` leaves `minimum_ev`, `minimum_probability_edge`, and `edge_benchmark` empty, with `configuration_label: unset`. Empty settings do not become a default cutoff. A synthetic test may supply numbers only with `configuration_label: synthetic_test`. Those numbers are not a profitable threshold. `thresholds_validated` stays false.
+
+The required benchmark is explicit: `raw_implied` or `no_vig`. If the policy requires no-vig and the price record's benchmark is not no-vig, the decision is `unavailable` with `required_no_vig_unavailable`. The raw edge is not substituted.
+
+| Result | When |
 | --- | --- |
-| `pass` | Any blocking gate matched, the quote is post-tip, identity was not yet available, the side is unpaired, no hit probability exists, or the edge is at or below the threshold |
-| `candidate` | Rules state is `available`, the quote is pregame at the earlier tip, identity `available_at` is at or before the odds retrieval, a hit probability exists, and edge is above the threshold |
+| `unavailable` | Inputs are not eligible, a custom-rule audit is missing, a numeric adjustment is present, the price is missing, stale, or not the same quote, thresholds or the benchmark are unset, or the price benchmark is not the required one |
+| `no_bet` | The price is an all-push, EV is not positive, probability edge is not positive, or either number is below its configured minimum |
+| `research_candidate` | Every gate above passed. The price is uncalibrated. Data quality, the price id that holds hit probability, and calibration status stay separate fields |
 
-The threshold is **unresolved**. No default stake, minimum edge, or Kelly fraction is set. A candidate names the side, book, line, American odds, snapshot id, audit id, edge, EV, and which probability reference was used. It does not name a stake.
+A research candidate may come from a synthetic comparison. That decision stays `origin: synthetic`. An uncalibrated observed price may also be a research candidate. Neither one is a live bet. The three custom-rule audits are still required, in the order `defender_return`, `no_streak_chasing`, `underperformance_rebound`, and their adjustment amounts stay null.
 
-`AnalysisResult.state == available` is not a candidate. The cached Thunder at Rockets quotes are not candidates: identity evidence was retrieved after the odds response.
+`AnalysisResult.state == available` is data quality. It is not by itself a research candidate. The cached Thunder at Rockets quotes are not candidates: identity evidence was retrieved after the odds response, and the shipped thresholds are unset.
 
 ## Bankroll
 

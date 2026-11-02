@@ -2,7 +2,7 @@
 
 In-development portfolio project. This is a local foundation for pregame NBA player props: points, assists, and rebounds.
 
-It does not calculate a projection, make a betting recommendation, or deploy to AWS. The base provider interface does not call the network. Historical player logs and schedule identity can be read through `nba_api`. Current points, assists, and rebounds prices can be read from The Odds API for one explicit event.
+An offline demo runs the implemented feature, baseline, integer-distribution, price, and research-decision stages on labeled synthetic data. It does not place a bet, size a stake, or call a provider. The base provider interface does not call the network. Historical player logs and schedule identity can be read through `nba_api`. Current points, assists, and rebounds prices can be read from The Odds API for one explicit event. Those adapters are not used by the demo.
 
 ## Goal
 
@@ -10,7 +10,7 @@ Build an agent that reviews an NBA slate before tip and accepts or refuses a poi
 
 ## Current status
 
-The contract layer is in place, plus historical player-log, schedule-identity, roster, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. `python -m pytest` last passed with 106 tests in 1.38s on Python 3.12.10. Those tests do not call the network.
+The contract layer is in place, plus historical player-log, schedule-identity, roster, and event-odds adapters. A current extract cannot establish that the same payload was available at an earlier cutoff. The offline path calculates a historical box score, a baseline mean, an experimental integer histogram, over/under probabilities, a price, and a research decision. The research decision is the final research outcome. A legacy `pass` only means the input gates accepted the quote. `python -m pytest` is the offline suite. It does not call the network. The latest count is in [docs/build-status.md](docs/build-status.md).
 
 What exists now:
 
@@ -39,12 +39,30 @@ Skipping one of those angles does not, by itself, abstain on the whole analysis.
 
 Details and open decisions are in [docs/build-status.md](docs/build-status.md). Record shapes and rule order are in [docs/architecture.md](docs/architecture.md).
 
+## Offline demo
+
+From the repository root, with no API key and no `.env` read:
+
+```bash
+python demo.py
+```
+
+The command prints a readable summary and then structured JSON after `--- demo-json ---`. It runs three synthetic scenarios through the implemented stages:
+
+1. `research_candidate`, using labeled synthetic-test minima. This is not a live bet.
+2. `no_bet`, where the same calculated price is below a labeled EV minimum.
+3. `unavailable`, because essential minutes evidence is missing.
+
+The data is synthetic. Synthetic performance is not predictive evidence: these outcomes do not measure accuracy or profit on real games. The shipped research thresholds stay unset. Stake and bankroll stay null, and `live_recommendation` stays false.
+
+Still open after this milestone: real-data evaluation, minutes uncertainty, injury and team context, settlement grading, bankroll sizing, and AWS.
+
 ## Planned architecture
 
-These pieces are not implemented.
+These pieces are not the offline demo.
 
 1. **Ingestion.** Historical player logs, schedule game identity, one-team rosters, and one-event player-prop odds can be read through the adapters. An injury adapter is not implemented. `ProviderAdapter.fetch` still returns `live_integration_not_implemented` unless the caller uses an adapter with an explicit query.
-2. **Projection.** A later model may calculate a projection. Stored projection records can already be supplied as inputs. This repository does not calculate one, and it does not turn a streak or a bounce-back into a confidence boost.
+2. **Projection.** The offline path calculates an uncalibrated baseline mean and an experimental integer histogram. It does not turn a streak or a bounce-back into a confidence boost. Real-data evaluation and minutes uncertainty are still open.
 3. **Reasoning.** A ChatGPT-compatible model is planned as a reasoning layer over records the code already validated.
 4. **Deployment.** The scheduled job is planned to run on AWS. No infrastructure, credentials, or deploy scripts are in this repository.
 

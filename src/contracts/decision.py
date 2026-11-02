@@ -2,9 +2,9 @@
 
 `threshold`, `bankroll_sizing`, and `stake` are fixed null. That is a
 temporary restriction until a threshold and a bankroll module exist.
-`edge` and `ev_per_unit` are extension fields an injected stage may fill.
-This module does not calculate them. Side probabilities live on the
-comparison, not here. live_recommendation and actionable stay false.
+`edge` and `ev_per_unit` are extension fields an injected synthetic stage
+may fill. A calculated price edge stays on the price record and is not
+copied here. live_recommendation and actionable stay false.
 """
 
 from typing import Literal

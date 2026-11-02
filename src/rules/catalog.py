@@ -11,7 +11,11 @@ from pydantic import Field, ValidationError, model_validator
 from contracts.common import AnalysisState, Market, StrictModel
 from contracts.configuration import (
     ConfigStatus,
+    load_baseline_projection,
     load_env_example,
+    load_feature_windows,
+    load_integer_residual,
+    load_research_decision,
     load_nba_api_log_settings,
     load_nba_api_roster_settings,
     load_nba_api_schedule_settings,
@@ -194,6 +198,10 @@ def load_foundation(root: Path) -> FoundationReport:
     schedule_status, schedules = load_schedule_file(root / "config" / "schedules.example.yaml")
     env_status, env_values = load_env_example(root / ".env.example")
     logs_status, _logs = load_nba_api_log_settings(root / "config" / "nba-api-logs.example.yaml")
+    feature_status, _features = load_feature_windows(root / "config" / "features.example.yaml")
+    baseline_status, _baseline = load_baseline_projection(root / "config" / "baseline-projection.example.yaml")
+    residual_status, _residual = load_integer_residual(root / "config" / "integer-residual.example.yaml")
+    research_status, _research = load_research_decision(root / "config" / "research-decision.example.yaml")
     roster_status, _roster = load_nba_api_roster_settings(root / "config" / "nba-api-roster.example.yaml")
     api_schedule_status, api_schedule = load_nba_api_schedule_settings(root / "config" / "nba-api-schedule.example.yaml")
     team_map_status = ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration")
@@ -219,6 +227,10 @@ def load_foundation(root: Path) -> FoundationReport:
         schedule_status,
         env_status,
         logs_status,
+        feature_status,
+        baseline_status,
+        residual_status,
+        research_status,
         roster_status,
         api_schedule_status,
         team_map_status,

@@ -32,7 +32,7 @@ Each stage names its inputs, outputs, failure states, and what must already exis
 | --- | --- | --- | --- | --- | --- |
 | Ingestion | Implemented for logs, schedule, one-team rosters, and one-event odds | Provider payload, explicit ids, retrieval clock | Canonical record or a quarantine reason | Malformed payload, unknown identity, stale or post-tip quote, provider error | Provider declaration |
 | Data quality | Implemented as quarantine plus the rules gates | Canonical records and `as_of` | `available`, `unavailable`, or `skip`, with a reason | See the gate table in `docs/decision-policy.md` | Ingestion |
-| Features | Planned | Accepted logs, schedule, roster, team context | Versioned feature rows for one player, game, and market | Missing minutes, unknown opponent, feature time after `as_of` | Data quality |
+| Features | Historical box scores implemented | Accepted logs joined to schedule tips, cutoff, lookback | Versioned averages, rates, variability, and included or excluded games | Missing stats, DNP, zero minutes, leakage, insufficient history | Data quality |
 | Projections | Contract only. No calculator | Feature rows, or a stored `Projection` supplied as an input | Stored `Projection` with `mean` | No historical projection when history is required | Features, or an external stored projection |
 | Custom rules | Implemented | `AnalysisSubject` and `config/custom-rules.json` | `AnalysisResult` and a stable `audit_id` | Any matched blocking gate; an enabled numeric adjustment | Data quality |
 | Market comparison | Planned | Paired and unpaired `MarketSnapshot` rows | Comparable prices at the same line; no invented side | Unpaired side, mismatched line, incomparable books | Ingestion |
@@ -95,11 +95,11 @@ Pace, usage, and rest are named future context models. A requested adjustment fo
 
 ## Planned stages
 
-These stages are specified so later code has a boundary. They are not implemented.
+Projections onward are specified and are not calculated. Historical box-score features are implemented.
 
-**Features.** One row per player, game, and market, built only from facts with `available_at <= as_of`. The row carries the snapshot ids it used. A missing minutes or availability input is a failed feature, not a zero.
+**Features.** Implemented in `features/historical.py`. One snapshot per player, game, and market uses only completed games whose tip is before the target and whose schedule and log evidence were available at or before `as_of`. Games are ordered by tip time. The target game is excluded. DNP, zero minutes, and missing stats are excluded with a reason and are not stored as zeros. Sample variability is the sample standard deviation with divisor `n - 1`, and it is null when fewer than two games are included. The shipped lookback is unvalidated. Usage, shot volume, pace, defense, and lineup stay null. Historical minutes are not expected future minutes.
 
-**Projections.** A later calculator may write a `Projection`. Until `model_version` changes, the engine accepts a projection only as a stored historical input. Today's projection cannot count as one of the three historical misses.
+**Projections.** `projection/baseline.py` stores a baseline mean: expected minutes times a historical per-minute rate. Shrinkage runs only when an explicit prior is supplied. The shipped setting is unshrunk and does not invent a prior. `outcomes` stays empty. The baseline `model_version` is `2026-11-01.baseline-minutes-rate`, and its calibration status is `not_applicable`. The rules catalog `model_version` stays `none`, and the rules engine still accepts a `Projection` only as a stored historical input. Today's projection cannot count as one of the three historical misses.
 
 **Market comparison.** Group accepted snapshots by game, player, market, and line. Select the best American price within one line. Do not mix lines. Do not invent the other side of an unpaired quote.
 
@@ -122,28 +122,29 @@ The offline path uses records and fixtures already in the repository. It does no
 7. Expect `state` `available` and reason `inputs_accepted` only on that complete subject. Expect three angle audits, null adjustment amounts, and `model_version` `none`.
 8. Move one timestamp after `as_of`, remove minutes, or break the player id, and expect `unavailable` or `skip` with the matching gate. The angle audits are still present.
 
-`pipeline.run_pipeline` is that path. The default stages after `evaluate` return `not_implemented` or `unavailable` and do not invent a probability, edge, or EV. Tests may inject synthetic stage values; those values are labeled synthetic and uncalibrated, and `live_recommendation` stays false. `AnalysisState.available` means the input gates passed. The report recommendation is `none`. Settlement records exist as a contract and are not produced by the pipeline. No provider is called.
+`pipeline.run_pipeline` is that path. When the rules state is `available`, the feature stage calculates the historical box score and the projection stage may store a baseline mean. If the bundle also supplies an integer residual histogram, the comparison stage classifies it at the quote line and side, and a separate price record stores implied probability, no-vig, probability edge, and expected value. That price is experimental and uncalibrated. The legacy decision stays `pass` / `not_implemented` and does not copy the edge or the EV. A separate research decision may be `research_candidate`, `no_bet`, or `unavailable`. It has no stake. Without that histogram, comparison and decision stay `not_implemented` and do not invent a probability, edge, or EV. An ineligible subject leaves the feature stage `unavailable`. Insufficient history or missing expected minutes leaves the projection unavailable and stores no mean. Tests may inject synthetic stage values; those values are labeled synthetic and uncalibrated, and `live_recommendation` stays false. `AnalysisState.available` means the input gates passed. The report recommendation is `none`. Settlement records exist as a contract and are not produced by the pipeline. No provider is called.
 
-The stat distribution names a player, game, and market. It has no line and no side. Win, loss, and push probabilities sit on a comparison that also names the line, side, book, and odds snapshot. Several comparisons may cite one distribution. The pipeline report carries the one comparison for the quote in the bundle.
+The baseline stat record names a player, game, and market. It has no line and no side. Win, loss, and push probabilities from the integer histogram sit on a comparison that names the line, side, and odds snapshot. A synthetic comparison also names the book. Several comparisons may cite one distribution. The pipeline report carries the one comparison for the quote in the bundle.
 
 ## Framework checklist
 
 | Component | State |
 | --- | --- |
 | Input gates and three angle audits | Complete. `available` is eligibility only |
-| Feature snapshot references and clocks | Complete. No feature math |
-| Stat distribution contract | Complete. `outcomes` is the extension field. The default leaves it empty |
-| Comparison identity: player, event, stat, line, side, book, odds snapshot | Complete when a synthetic or later stage fills the price. The default does not select a price |
-| Side probabilities on that comparison | Fields exist. Nothing calculates them. They cannot be stored without the line, side, book, odds, and snapshot clocks |
-| Implied probability and no-vig price | Fixed null. Temporary restriction |
-| Decision edge and EV | Extension fields an injected stage may fill. Nothing calculates them |
-| Threshold, stake, bankroll sizing | Fixed null. Temporary restriction |
+| Historical box-score features | Complete. Averages, per-minute rates, and sample variability |
+| Baseline mean | Complete. Expected minutes times the selected per-minute rate. The mean is not the histogram |
+| Stat distribution contract | The baseline record keeps `outcomes` empty. The integer histogram is a separate experimental record |
+| Comparison identity: player, event, stat, line, side, book, odds snapshot | A synthetic comparison names the book and the American odds. A residual comparison names the line, side, and snapshot and does not select a price |
+| Side probabilities on that comparison | Calculated for the integer histogram only. Uncalibrated. A split tail is unavailable |
+| Implied probability and no-vig price | Calculated on `PriceComparison`. Raw implied contains vig. No-vig is not a true probability. The comparison fields stay null |
+| Decision edge and EV | Calculated on the price record. The research decision references that record and does not copy the numbers |
+| Threshold, stake, bankroll sizing | Shipped research minima are unset. Stake and bankroll stay null. A labeled synthetic test may supply minima |
 | `live_recommendation` | Fixed false |
 | Settlement win, loss, push, and void | Contract only. Push and void are different outcomes. `unit_profit` is fixed null and `graded` is false. Temporary restriction on profit. Grading is unimplemented |
-| Stage protocols on `PipelineStages` | Extension points. The defaults do not calculate |
+| Stage protocols on `PipelineStages` | Extension points. Features, the baseline mean, side probabilities, a residual price, and the research policy calculate. The legacy decision does not become a recommendation |
 | Provider adapters for logs, schedule, roster, and one-event odds | Complete and unchanged by this skeleton |
-| Injury adapter, team-context adapter, projection math, AWS | Unimplemented |
+| Injury adapter, team-context adapter, AWS | Unimplemented. The integer histogram is an uncalibrated experiment, not a general outcome model |
 
 ## Configuration
 
-`load_foundation` checks the shipped example files together: providers, schedules, env example, log settings, roster settings, schedule settings, team abbreviations, odds settings, odds team names, and the player map. Schedules run in UTC. `.env.example` keeps credential values empty. A filled secret in the example file is `secret_present`.
+`load_foundation` checks the shipped example files together: providers, schedules, env example, log settings, feature windows, baseline projection settings, roster settings, schedule settings, team abbreviations, odds settings, odds team names, and the player map. Schedules run in UTC. `.env.example` keeps credential values empty. A filled secret in the example file is `secret_present`.
