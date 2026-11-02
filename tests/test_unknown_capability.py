@@ -62,6 +62,11 @@ def test_sources_do_not_import_network_clients():
     banned = ("urllib", "httpx", "requests", "boto3", "socket", "aiohttp")
     for path in (FIXTURES.parents[1] / "src").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        for name in banned:
+        names = banned
+        if path.parent.name == "reasoning" and path.name == "bedrock.py":
+            names = tuple(name for name in banned if name != "boto3")
+            assert "import boto3" in text
+            assert text.index("def build_client") < text.index("import boto3")
+        for name in names:
             assert f"import {name}" not in text
             assert f"from {name}" not in text

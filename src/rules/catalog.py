@@ -12,6 +12,7 @@ from contracts.common import AnalysisState, Market, StrictModel
 from contracts.configuration import (
     ConfigStatus,
     load_baseline_projection,
+    load_bedrock,
     load_env_example,
     load_feature_windows,
     load_integer_residual,
@@ -202,6 +203,7 @@ def load_foundation(root: Path) -> FoundationReport:
     baseline_status, _baseline = load_baseline_projection(root / "config" / "baseline-projection.example.yaml")
     residual_status, _residual = load_integer_residual(root / "config" / "integer-residual.example.yaml")
     research_status, _research = load_research_decision(root / "config" / "research-decision.example.yaml")
+    bedrock_status, _bedrock = load_bedrock(root / "config" / "bedrock.example.yaml")
     roster_status, _roster = load_nba_api_roster_settings(root / "config" / "nba-api-roster.example.yaml")
     api_schedule_status, api_schedule = load_nba_api_schedule_settings(root / "config" / "nba-api-schedule.example.yaml")
     team_map_status = ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration")
@@ -231,6 +233,7 @@ def load_foundation(root: Path) -> FoundationReport:
         baseline_status,
         residual_status,
         research_status,
+        bedrock_status,
         roster_status,
         api_schedule_status,
         team_map_status,

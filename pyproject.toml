@@ -7,6 +7,7 @@ dependencies = [
   "pydantic>=2.6,<3",
   "PyYAML>=6.0,<7",
   "nba_api>=1.4,<2",
+  "boto3>=1.35,<2",
 ]
 
 [project.optional-dependencies]

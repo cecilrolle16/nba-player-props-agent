@@ -1,6 +1,6 @@
 # Build status
 
-The project is in development. This note records what is complete, what is still unfinished, and the next step. Custom rules were not changed. The baseline mean does not emit a distribution, a price, a recommendation, a numeric adjustment, or an AWS resource.
+The project is in development. This note records what is complete, what is still unfinished, and the next step. Custom rules were not changed. The baseline mean does not emit a recommendation or a numeric adjustment. The repository does not create AWS resources. Bedrock is an optional explanation client and is disabled in the shipped config.
 
 ## Complete
 
@@ -15,7 +15,7 @@ The project is in development. This note records what is complete, what is still
 
 ## Test results
 
-`python -m pytest` — 155 passed in 10.16s (Python 3.12.10). No warnings. This run includes the synthetic offline demo and did not call the network.
+`python -m pytest` — 162 passed in 6.88s (Python 3.12.10). No warnings. The Bedrock tests mock the client. Pytest pins `NBA_BEDROCK_FILE` to the shipped example, so this run did not call the network.
 
 Automated tests use synthetic fixtures and do not call the network. No API key is required. The matching tests cover 600-second and 660-second gaps, the 901-second boundary, two candidates, reversed home and away, a different season, and post-tip rejection at the earlier tip.
 
@@ -107,6 +107,10 @@ The stage map and the contracts are documented from the code in this repository.
 
 No model accuracy, profitability, or deployment is claimed.
 
+## Bedrock explanation
+
+`pipeline.run_pipeline` attaches a Bedrock explanation after the research decision. `src/reasoning/bedrock.py` uses the Bedrock Runtime Converse API when `config/bedrock.local.yaml` sets `enabled: true`. The configured profile is US Anthropic Claude Haiku 4.5 in `us-west-2`. Claude 3 Haiku is end of life. A synthetic `explain_report` call on this machine returned `explained`, kept `research_result` `unavailable`, kept the synthetic and uncalibrated labels, and left `live_recommendation` false. The shipped example stays disabled. Pytest pins `NBA_BEDROCK_FILE` to that example, so the offline suite does not call AWS. A disabled or failed call keeps the Python result and stores a deterministic fallback. The model cannot change numbers, override an abstention, drop the synthetic label, or raise calibration. Provider text is untrusted data. The odds key is not put in the prompt. The example IAM policy names that one inference profile and its destination models in us-east-1, us-east-2, and us-west-2. It does not grant access by itself.
+
 ## Next step
 
-Stop before API work. The offline demo is the verification checkpoint for the implemented stages. The research decision is uncalibrated and is not a recommendation. Synthetic performance is not predictive evidence. The shipped thresholds stay unset. Real-data evaluation, minutes uncertainty, injury and team context, settlement grading, bankroll sizing, and AWS remain open. Leave the cached Thunder at Rockets quotes non-actionable.
+Stop before scheduling, deployment, or live recommendations. The offline demo remains the numerical checkpoint. This machine explains finished reports through the gitignored local Bedrock file. The shipped example stays disabled. Synthetic performance is not predictive evidence. Real-data evaluation, minutes uncertainty, injury and team context, settlement grading, bankroll sizing, and AWS job orchestration remain open. Leave the cached Thunder at Rockets quotes non-actionable.

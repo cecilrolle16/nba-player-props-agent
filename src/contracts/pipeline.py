@@ -15,6 +15,7 @@ from contracts.integer_residual import IntegerResidualDistribution
 from contracts.market import MarketSnapshot
 from contracts.player_log import PlayerGameLog
 from contracts.price import PriceComparison
+from contracts.reasoning import ReasoningExplanation
 from contracts.research import ResearchDecision
 from contracts.projection import RatePrior
 from contracts.roster import RosterEntry
@@ -46,6 +47,7 @@ class PipelineReport(StrictModel):
     comparison: MarketComparison
     price: PriceComparison | None = None
     research_decision: ResearchDecision
+    explanation: ReasoningExplanation
     decision: Decision
     settlement: None = None
     live_recommendation: Literal[False] = False

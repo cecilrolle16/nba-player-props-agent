@@ -39,6 +39,10 @@ def test_demo_outcomes_are_calculated_and_non_actionable():
     assert candidate["final_research_outcome"]["reason"] == "all_research_gates_passed"
     assert candidate["final_research_outcome"]["calibration_status"] == "uncalibrated"
     assert candidate["final_research_outcome"]["data_quality"] == "available"
+    assert candidate["explanation"]["status"] == "fallback"
+    assert candidate["explanation"]["fallback_reason"] == "reasoning_disabled"
+    assert candidate["explanation"]["research_result"] == "research_candidate"
+    assert candidate["explanation"]["live_recommendation"] is False
     assert candidate["input_eligibility_record"]["result"] == "pass"
     assert candidate["input_eligibility_record"]["not_a_research_outcome"] is True
     assert candidate["input_eligibility_record"]["edge"] is None

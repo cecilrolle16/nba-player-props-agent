@@ -226,6 +226,14 @@ def render(document: dict[str, object]) -> str:
             f"{eligibility['result']} / {eligibility['reason']} "
             "(not a research outcome and not a bet)"
         )
+        explanation = scenario["explanation"]
+        assert isinstance(explanation, dict)
+        lines.append(
+            "Bedrock explanation: "
+            f"{explanation['status']}"
+            + (f" / {explanation['fallback_reason']}" if explanation["fallback_reason"] else "")
+            + " (explains the research outcome; it is not a second decision)"
+        )
     return "\n".join(lines)
 
 
@@ -259,6 +267,9 @@ def _require_outcomes(document: dict[str, object]) -> None:
             raise RuntimeError("the research outcome copied a price number")
         if eligibility["not_a_research_outcome"] is not True:
             raise RuntimeError("the legacy record was presented as a research outcome")
+        explanation = item["explanation"]
+        if explanation["research_result"] != outcome["result"] or explanation["live_recommendation"] is not False:
+            raise RuntimeError("the Bedrock explanation disagreed with the research outcome")
 
 
 def _scenario(
@@ -313,6 +324,17 @@ def _scenario(
                 {"gate_id": gate.gate_id, "status": gate.status, "reason": gate.reason}
                 for gate in research.gates
             ],
+        },
+        "explanation": {
+            "record": "bedrock_explanation",
+            "status": report.explanation.status,
+            "fallback_reason": report.explanation.fallback_reason,
+            "research_result": report.explanation.research_result,
+            "data_label": report.explanation.data_label,
+            "calibration_status": report.explanation.calibration_status.value,
+            "live_recommendation": report.explanation.live_recommendation,
+            "stake": report.explanation.stake,
+            "numerical_report_sha256": report.explanation.numerical_report_sha256,
         },
         "input_eligibility_record": {
             "record": "legacy_decision",

@@ -6,6 +6,7 @@
 *.key
 *.p12
 *.pfx
+config/bedrock.local.yaml
 credentials.json
 secrets.json
 .aws/

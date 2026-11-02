@@ -1,0 +1,15 @@
+# Optional explanation client. enabled false means the Python report is unchanged
+# and Bedrock is not called. This file does not grant model access.
+# Confirm the inference profile and its destination regions in the account
+# before setting enabled true. Credentials stay in the AWS credential chain.
+version: 1
+enabled: false
+region: us-west-2
+model_id: us.anthropic.claude-haiku-4-5-20251001-v1:0
+prompt_path: prompts/analysis-summary.txt
+connect_timeout_seconds: 5
+read_timeout_seconds: 20
+max_attempts: 2
+max_tokens: 800
+max_output_chars: 4000
+temperature: 0

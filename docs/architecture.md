@@ -18,7 +18,7 @@ Status words mean the same thing in every document. **Implemented** is present i
 ## Principles
 
 - Providers are replaceable. Canonical records do not contain a vendor URL or a credential. `ProviderAdapter.fetch` refuses a live call unless a specific adapter is given an explicit query.
-- Calculations do not call an LLM. Rules, implied probability, edge, and EV are deterministic functions of stored records.
+- Calculations do not call an LLM. Rules, implied probability, edge, and EV are deterministic functions of stored records. Amazon Bedrock may explain a finished report. It is not on that calculation path, and a missing model does not change the numbers.
 - `as_of` is the decision clock. `available_at` is the earliest time a fact may be used. A fact later than `as_of` is `not_yet_available`.
 - `model_version` is `none`. `rules_version` is `2026-10-29.nba-props-angles`. The catalog rejects any other model version and rejects `numeric_hypothesis_adjustments_enabled: true`.
 - `available` means the input gates passed. It is not a recommendation, a stake, or a claim that a side will win.
@@ -37,7 +37,7 @@ Each stage names its inputs, outputs, failure states, and what must already exis
 | Custom rules | Implemented | `AnalysisSubject` and `config/custom-rules.json` | `AnalysisResult` and a stable `audit_id` | Any matched blocking gate; an enabled numeric adjustment | Data quality |
 | Market comparison | Planned | Paired and unpaired `MarketSnapshot` rows | Comparable prices at the same line; no invented side | Unpaired side, mismatched line, incomparable books | Ingestion |
 | Decisions | Planned | Rules result, projection, compared prices | Pass or a candidate with edge and EV | Gates failed, identity later than the quote, threshold unset | Rules, projections, market comparison |
-| Reporting | Planned | Decision, audit, quarantine counts | A slate report that restates reasons | Missing audit id | Decisions |
+| Reporting | Implemented as an optional Bedrock explanation | Finished Python report, audits, source ids, risks, and data gaps | An explanation linked to the unchanged report, or a deterministic fallback | Invalid model output, timeout, or Bedrock disabled | Decisions. Not required for the numerical report |
 | Evaluation | Specified, not implemented | Pregame decision plus a final log | Win, loss, push, or void; later, calibration | Game not final, log missing, quote was never accepted | Settlement log |
 | AWS orchestration | Planned | Job config, caches, quotas | Ordered jobs, retries, and monitors | Quota, auth, or a failed prior job | All prior stages for a live slate |
 
@@ -53,7 +53,10 @@ nba_api schedule ─────────► ScheduleGame or a quarantined ga
 nba_api roster ───────────► RosterEntry or a quarantined player
 odds-api event odds ──────► MarketSnapshot or a quarantined quote
 AnalysisSubject ──────────► AnalysisResult
+Python report ────────────► optional Bedrock explanation or a deterministic fallback
 ```
+
+`nba_api` and The Odds API stop at canonical records. Validation and the numerical stages run without Bedrock. `pipeline.run_pipeline` attaches a Bedrock explanation after the research decision. The shipped config leaves the client disabled, so that attachment is the deterministic fallback and does not call AWS. A gitignored `config/bedrock.local.yaml` can set `enabled: true` for this machine. Bedrock sees the finished report and the source ids already on it. Provider text is wrapped as untrusted data. Bedrock cannot change a number, a gate, a synthetic label, or an abstention, and it cannot turn `live_recommendation` on.
 
 Canonical records live in `src/contracts/`. Adapters live in `src/ingestion/adapters/`. Rule evaluation lives in `src/rules/`.
 
@@ -93,21 +96,27 @@ Team context and injury reports have contracts and no adapters. Stored projectio
 
 Pace, usage, and rest are named future context models. A requested adjustment for them is recorded with amount null and validation status `not_modeled`. It is not a custom-angle adjustment.
 
+## Bedrock explanation
+
+`reasoning.bedrock.explain_report` runs after the Python report. The shipped file `config/bedrock.example.yaml` has `enabled: false`, so the default path does not call AWS. The client is boto3 Bedrock Runtime `converse`, with the region and model or inference-profile id taken from that file. Credentials come from the AWS credential chain or an IAM role. The example policy is `config/bedrock-iam-policy.example.json`. It allows `bedrock:InvokeModel` and `bedrock:GetInferenceProfile` for one profile, and `bedrock:InvokeModel` for that profile's foundation model only when the request uses the profile. The example model is the US Anthropic Claude Haiku 4.5 inference profile. `GetInferenceProfile` for that profile lists destination models in us-east-1, us-east-2, and us-west-2. Claude 3 Haiku is end of life and is not the configured model. This repository does not grant access to the profile.
+
+Timeouts, retries, and output length are bounded by the config. If Bedrock is disabled, times out, or returns a reference, number, label, or result that does not match the Python report, the structured report is kept and the explanation is a deterministic fallback. A model response is not a bet.
+
 ## Planned stages
 
-Projections onward are specified and are not calculated. Historical box-score features are implemented.
+Historical features, the baseline mean, the integer histogram, side probabilities, the price, and the research decision are calculated. Settlement grading, bankroll sizing, and AWS job orchestration are not.
 
 **Features.** Implemented in `features/historical.py`. One snapshot per player, game, and market uses only completed games whose tip is before the target and whose schedule and log evidence were available at or before `as_of`. Games are ordered by tip time. The target game is excluded. DNP, zero minutes, and missing stats are excluded with a reason and are not stored as zeros. Sample variability is the sample standard deviation with divisor `n - 1`, and it is null when fewer than two games are included. The shipped lookback is unvalidated. Usage, shot volume, pace, defense, and lineup stay null. Historical minutes are not expected future minutes.
 
 **Projections.** `projection/baseline.py` stores a baseline mean: expected minutes times a historical per-minute rate. Shrinkage runs only when an explicit prior is supplied. The shipped setting is unshrunk and does not invent a prior. `outcomes` stays empty. The baseline `model_version` is `2026-11-01.baseline-minutes-rate`, and its calibration status is `not_applicable`. The rules catalog `model_version` stays `none`, and the rules engine still accepts a `Projection` only as a stored historical input. Today's projection cannot count as one of the three historical misses.
 
-**Market comparison.** Group accepted snapshots by game, player, market, and line. Select the best American price within one line. Do not mix lines. Do not invent the other side of an unpaired quote.
+**Market comparison.** A supplied integer histogram is classified at the quote's line and side. A separate price record stores implied probability, no-vig, probability edge, and EV for that same quote. The comparison does not select a best price across books, and it does not invent the other side of an unpaired quote.
 
-**Decisions.** A candidate exists only after the rules state is `available`, the quote is still pregame at the earlier tip, identity evidence was available at or before the odds retrieval, and a projection supplies a hit probability. Otherwise the output is pass. Edge and EV use the formulas in `docs/decision-policy.md`. No stake is attached.
+**Decisions.** The research decision is `research_candidate`, `no_bet`, or `unavailable`. The legacy `pass` or `abstain` record is input eligibility only. Edge and EV stay on the price record. No stake is attached. The formulas are in `docs/decision-policy.md`.
 
-**Reporting.** Restate the audit id, gate reason, angle statuses, quarantine counts, and the candidate or pass. The report does not change a number.
+**Reporting.** `explain_report` may restate the finished report. It does not change a number. With Bedrock disabled, the explanation is the deterministic fallback.
 
-**AWS.** Job order, invalidation, retries, quotas, and monitors are in `docs/build-roadmap.md`. No infrastructure is in this repository.
+**AWS.** Job order, invalidation, retries, quotas, and monitors are in `docs/build-roadmap.md`. No infrastructure is in this repository. The Bedrock client is not that job runner.
 
 ## Synthetic end-to-end path
 
@@ -143,7 +152,8 @@ The baseline stat record names a player, game, and market. It has no line and no
 | Settlement win, loss, push, and void | Contract only. Push and void are different outcomes. `unit_profit` is fixed null and `graded` is false. Temporary restriction on profit. Grading is unimplemented |
 | Stage protocols on `PipelineStages` | Extension points. Features, the baseline mean, side probabilities, a residual price, and the research policy calculate. The legacy decision does not become a recommendation |
 | Provider adapters for logs, schedule, roster, and one-event odds | Complete and unchanged by this skeleton |
-| Injury adapter, team-context adapter, AWS | Unimplemented. The integer histogram is an uncalibrated experiment, not a general outcome model |
+| Injury adapter, team-context adapter, AWS jobs | Unimplemented. The integer histogram is an uncalibrated experiment, not a general outcome model |
+| Bedrock explanation | Optional and disabled in the shipped config. It explains a finished report or falls back. It does not calculate |
 
 ## Configuration
 

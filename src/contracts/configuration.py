@@ -9,6 +9,7 @@ import yaml
 from pydantic import AfterValidator, Field, ValidationError, field_validator, model_validator
 
 from contracts.capabilities import declaration_status
+from contracts.reasoning import BedrockSettings
 from contracts.common import (
     UTCDateTime,
     AnalysisState,
@@ -472,6 +473,22 @@ def validate_research_decision(payload: object) -> tuple[ConfigStatus, ResearchD
     except ValidationError as exc:
         return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
     return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def validate_bedrock(payload: object) -> tuple[ConfigStatus, BedrockSettings | None]:
+    try:
+        parsed = BedrockSettings.model_validate(payload)
+    except ValidationError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return ConfigStatus(state=AnalysisState.AVAILABLE, reason=None), parsed
+
+
+def load_bedrock(path: Path) -> tuple[ConfigStatus, BedrockSettings | None]:
+    try:
+        payload = load_yaml(path)
+    except OSError as exc:
+        return ConfigStatus(state=AnalysisState.UNAVAILABLE, reason="invalid_configuration", detail=str(exc)), None
+    return validate_bedrock(payload)
 
 
 def load_research_decision(path: Path) -> tuple[ConfigStatus, ResearchDecisionSettings | None]:

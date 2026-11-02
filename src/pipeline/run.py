@@ -5,8 +5,10 @@ can store a baseline mean. When the bundle supplies an integer residual
 histogram, the comparison stage classifies that histogram at the quote's
 line and side. A separate price record may then store implied probability,
 no-vig, probability edge, and expected value. The research policy reads
-that record and does not copy the numbers. The legacy decision stays
-non-actionable. Stakes and live recommendations stay off.
+that record and does not copy the numbers. Bedrock then explains that
+finished report, or a deterministic fallback is stored when Bedrock is
+disabled or unavailable. The legacy decision stays non-actionable.
+Stakes and live recommendations stay off.
 """
 
 from contracts.common import AnalysisState
@@ -18,6 +20,7 @@ from contracts.integer_residual import RESIDUAL_VERSION
 from contracts.pipeline import PipelineInput, PipelineReport
 from contracts.price import PriceComparison
 from decision.policy import research_decision
+from reasoning.bedrock import _reasoning_input, explain_report, load_runtime_settings
 from edge.price import price_quote, priced_quote_from_input, priced_quote_from_snapshot, refused_price
 from contracts.stages import StageState
 from pipeline.stages import (
@@ -90,6 +93,23 @@ def run_pipeline(
     decision = _guard_decision(proposed, context, features, projection, comparison)
     price = _price(bundle, comparison)
     market = bundle.subject.market.value
+    decided = research_decision(
+        validation=validation,
+        comparison=comparison,
+        projection=projection,
+        price=price,
+        policy=bundle.research_policy,
+    )
+    explanation = explain_report(
+        _reasoning_input(
+            research=decided,
+            audits=tuple(angle.policy_id for angle in validation.audit.angles),
+            line=comparison.line,
+            price=price,
+            raw_player_name=bundle.subject.snapshot.raw_player_name,
+        ),
+        load_runtime_settings(),
+    )
     return PipelineReport(
         report_id=f"report:synthetic-{market}",
         validation=validation,
@@ -97,13 +117,8 @@ def run_pipeline(
         projection=projection,
         comparison=comparison,
         price=price,
-        research_decision=research_decision(
-            validation=validation,
-            comparison=comparison,
-            projection=projection,
-            price=price,
-            policy=bundle.research_policy,
-        ),
+        research_decision=decided,
+        explanation=explanation,
         decision=decision,
         inputs_eligible=context.eligible,
     )
